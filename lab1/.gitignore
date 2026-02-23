@@ -1,0 +1,45 @@
+# Git ignore для лабораторной работы PostgreSQL
+
+# PostgreSQL данные и временные файлы
+*.pid
+*.log
+*.backup
+logfile
+postmaster.opts
+
+# Директории кластера и табличных пространств
+nwc36/
+sbm10/
+nym69/
+
+# Архив WAL
+archive/
+
+# Временные файлы
+*.tmp
+*.swp
+*~
+.DS_Store
+
+# IDE и редакторы
+.vscode/
+.idea/
+*.iml
+
+# Резервные копии
+*.bak
+*.old
+*.orig
+
+# Дампы баз данных
+*.dump
+*.sql.gz
+*.tar.gz
+
+# Секретные данные (если будут)
+.env
+secrets/
+credentials/
+
+# Логи выполнения
+execution.log
