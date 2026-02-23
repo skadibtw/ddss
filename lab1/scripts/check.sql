@@ -3,11 +3,6 @@
 
 \set ON_ERROR_STOP on
 
-\if :{?db_name}
-\else
-\set db_name bigbluecity
-\endif
-
 \echo ''
 \echo '=== SETTINGS ==='
 SELECT name, setting
@@ -37,7 +32,7 @@ SELECT
 FROM pg_catalog.pg_tablespace
 ORDER BY spcname;
 
-\connect :db_name
+\connect bigbluecity
 
 \echo ''
 \echo '=== OBJECTS BY TABLESPACE ==='

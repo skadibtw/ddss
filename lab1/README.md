@@ -15,6 +15,10 @@
 bash scripts/create.sh --reset
 ```
 
+`create.sh` можно:
+- запускать целиком;
+- копировать блоками и выполнять вручную (шаги `STEP 0 ... STEP 8`).
+
 После выполнения:
 
 - кластер: `$HOME/nwc36`
@@ -23,25 +27,15 @@ bash scripts/create.sh --reset
 - роль: `dbuser`
 - tablespaces: `$HOME/sbm10`, `$HOME/nym69`
 
+## По конфигам
+
+- `postgresql.conf` настраивается через `ALTER SYSTEM` в `create.sh`.
+- `pg_hba.conf` задаётся отдельным файлом (через `ALTER SYSTEM` это не настраивается).
+
 ## Очистка
 
 ```bash
 bash scripts/clean.sh --yes
-```
-
-## Переменные (опционально)
-
-Можно переопределять перед запуском:
-
-```bash
-export CLUSTER_DIR="$HOME/nwc36"
-export PG_PORT=9099
-export PG_DATABASE=bigbluecity
-export PG_USER=dbuser
-export PG_PASSWORD=secure_password_123
-export TABLESPACE_DIR_1="$HOME/sbm10"
-export TABLESPACE_DIR_2="$HOME/nym69"
-bash scripts/create.sh --reset
 ```
 
 ## Подключение к учебному узлу
