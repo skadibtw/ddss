@@ -1,6 +1,6 @@
 # Лаба 1: минимальный комплект для демонстрации
 
-Ниже комплект из **2 shell + 2 SQL** файлов.
+Ниже комплект из **3 shell + 3 SQL** файлов.
 
 ## Файлы
 
@@ -8,6 +8,8 @@
 - `scripts/clean.sh` - полная очистка кластера и табличных пространств.
 - `scripts/setup.sql` - создание БД/роли/табличных пространств, схема и данные.
 - `scripts/check.sql` - проверка параметров, табличных пространств и объектов.
+- `scripts/ha_pgbench_check.sh` - короткая проверка `pgbench` (порт `9099`, транзакция `24KB`, порог `1500 TPS`).
+- `scripts/pgbench_24kb.sql` - SQL-нагрузка `pgbench` (одна транзакция = вставка `24KB`).
 
 ## Быстрый показ преподавателю
 
@@ -36,6 +38,19 @@ bash scripts/create.sh --reset
 
 ```bash
 bash scripts/clean.sh --yes
+```
+
+## Проверка TPS и размера транзакции (`pgbench`)
+
+```bash
+bash scripts/ha_pgbench_check.sh
+```
+
+Скрипт запускает тест на `localhost:9099`, проверяет `TPS >= 1500` и валидирует размер транзакции `24KB`.
+Если на сервере ошибка `Resource temporarily unavailable`, уменьшайте конкуренцию:
+
+```bash
+CLIENTS=80 JOBS=4 DURATION=600 bash scripts/ha_pgbench_check.sh
 ```
 
 ## Подключение к учебному узлу
