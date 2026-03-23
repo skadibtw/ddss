@@ -1,8 +1,4 @@
-#!/bin/bash
 # create.sh
-# Можно запускать целиком:
-#   bash scripts/create.sh --reset
-
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

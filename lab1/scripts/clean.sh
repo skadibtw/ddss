@@ -19,7 +19,7 @@ if [ "${1:-}" != "--yes" ]; then
         echo "Отмена."
         exit 0
     fi
-fi
+fi  
 
 pg_ctl -D "$HOME/nwc36" stop -m fast >/dev/null 2>&1 || true
 rm -rf "$HOME/nwc36" "$HOME/sbm10" "$HOME/nym69" /tmp/archive
