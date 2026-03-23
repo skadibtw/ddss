@@ -2,11 +2,7 @@
 set -euo pipefail
 
 export FAILOVER_PGDATA="$HOME/failover_pgdata"
-export FAILOVER_TS1="$HOME/failover_ts1"
-export FAILOVER_TS2="$HOME/failover_ts2"
 export BACKUP_BASE_DIR="$HOME/backup/base"
-export BACKUP_TS1_DIR="$HOME/backup/tblspc/sbm10"
-export BACKUP_TS2_DIR="$HOME/backup/tblspc/nym69"
 export ARCHIVE_DIR="$HOME/archive"
 export STANDBY_PORT=9099
 export DB_NAME=bigbluecity
@@ -14,30 +10,10 @@ export DB_NAME=bigbluecity
 echo "Run this stage on standby: postgres2@pg132"
 
 pg_ctl -D "$FAILOVER_PGDATA" stop -m fast >/dev/null 2>&1 || true
-rm -rf "$FAILOVER_PGDATA" "$FAILOVER_TS1" "$FAILOVER_TS2"
-mkdir -p "$FAILOVER_PGDATA" "$FAILOVER_TS1" "$FAILOVER_TS2"
-chmod 700 "$FAILOVER_PGDATA" "$FAILOVER_TS1" "$FAILOVER_TS2"
+rm -rf "$FAILOVER_PGDATA"
+mkdir -p "$FAILOVER_PGDATA"
+chmod 700 "$FAILOVER_PGDATA"
 rsync -aH --delete "$BACKUP_BASE_DIR/" "$FAILOVER_PGDATA/"
-rsync -aH --delete "$BACKUP_TS1_DIR/" "$FAILOVER_TS1/"
-rsync -aH --delete "$BACKUP_TS2_DIR/" "$FAILOVER_TS2/"
-
-bash -s <<EOF
-set -euo pipefail
-declare -A TS_MAP
-for link in '$FAILOVER_PGDATA'/pg_tblspc/*; do
-  [ -L "\${link}" ] || continue
-  oid="\$(basename "\${link}")"
-  target="\$(readlink "\${link}")"
-  case "\${target}" in
-    *sbm10*) TS_MAP["\${oid}"]='$FAILOVER_TS1' ;;
-    *nym69*) TS_MAP["\${oid}"]='$FAILOVER_TS2' ;;
-  esac
-done
-rm -f '$FAILOVER_PGDATA'/pg_tblspc/*
-for oid in "\${!TS_MAP[@]}"; do
-  ln -s "\${TS_MAP[\${oid}]}" '$FAILOVER_PGDATA'/pg_tblspc/"\${oid}"
-done
-EOF
 
 cat >> "$FAILOVER_PGDATA/postgresql.auto.conf" <<CONF
 port = '$STANDBY_PORT'

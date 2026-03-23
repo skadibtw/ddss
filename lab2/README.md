@@ -30,6 +30,8 @@ mkdir -p ${HOME}/archive ${HOME}/failover_pgdata ${HOME}/transfer
 chmod 700 ${HOME}/archive ${HOME}/failover_pgdata ${HOME}/transfer
 ```
 
+Каталоги табличных пространств `${HOME}/backup/tblspc/...`, полученные на этапе 1, затем используются напрямую из резервной копии в этапах 2 и 4.
+
 ## Порядок запуска
 
 ```bash
