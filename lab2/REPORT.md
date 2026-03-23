@@ -19,15 +19,15 @@
 
 ## Оглавление
 
-1. [Задание](#задание)
-2. [Выполнение](#выполнение)
-3. [Этап 1. Резервное копирование](#этап-1-резервное-копирование)
-4. [Расчет объема резервных копий](#расчет-объема-резервных-копий)
-5. [Этап 2. Потеря основного узла](#этап-2-потеря-основного-узла)
-6. [Этап 3. Повреждение файлов БД](#этап-3-повреждение-файлов-бд)
-7. [Этап 4. Логическое повреждение данных](#этап-4-логическое-повреждение-данных)
-8. [Ответы на вопросы для защиты](#ответы-на-вопросы-для-защиты)
-9. [Вывод](#вывод)
+1. Задание
+2. Выполнение
+3. Этап 1. Резервное копирование
+4. Расчет объема резервных копий
+5. Этап 2. Потеря основного узла
+6. Этап 3. Повреждение файлов БД
+7. Этап 4. Логическое повреждение данных
+8. Ответы на вопросы для защиты
+9. Вывод
 
 ---
 
@@ -114,23 +114,21 @@ ssh -J s413099@helios.cs.ifmo.ru:2222 postgres2@pg132
 
 ## Этап 1. Резервное копирование
 
-Сначала были подготовлены скрипты, в начале которых вынесен короткий блок `export ...` с путями, портами и именами узлов. После этого команды можно выполнять целиком или копировать построчно.
-
-Далее на основном узле была настроена архивизация WAL и создана первоначальная полная копия.
+Для выполнения этапа был подготовлен сценарий `stage1_backup.sh`, в котором в начале вынесены основные параметры: пути, порты и имена узлов. Далее на основном узле была настроена архивизация WAL и создана первоначальная полная физическая копия кластера.
 
 Перед повторным запуском этапа 1 необходимо убедиться, что ранее восстановленный кластер в `${HOME}/nwc36_restore` остановлен, иначе он может занимать порт `9099` и мешать запуску основного кластера.
 
 Сценарий запускается локально на основном узле (или выполняется построчно из текста скрипта):
 
 ```bash
-cd /Users/skadibtw/ddss/lab2
-bash scripts/stage1_backup.sh
+bash ~/lab2/scripts/stage1_backup.sh
 ```
 
 Основные действия сценария:
 
-1. Создание каталогов резервного копирования на основном узле.
-2. Настройка параметров сервера PostgreSQL на основном узле:
+1. Очистка и создание каталогов `archive` и `backup` на основном узле.
+2. Подготовка служебных каталогов на резервном узле по `ssh`.
+3. Настройка параметров сервера PostgreSQL на основном узле:
 
 ```sql
 ALTER SYSTEM SET wal_level = 'replica';
@@ -139,8 +137,9 @@ ALTER SYSTEM SET archive_timeout = '300';
 ALTER SYSTEM SET archive_command = 'test ! -f ${HOME}/archive/%f && cp %p ${HOME}/archive/%f && scp -q ${HOME}/archive/%f postgres2@pg132:/var/db/postgres2/archive/%f';
 ```
 
-3. Перезапуск кластера на основном узле для применения `archive_mode`.
-4. Создание базовой физической копии:
+4. Добавление правила в `pg_hba.conf` для локального replication-подключения `pg_basebackup`.
+5. Перезапуск кластера на основном узле для применения новых параметров.
+6. Создание базовой физической копии:
 
 ```bash
 pg_basebackup \
@@ -154,14 +153,13 @@ pg_basebackup \
   --tablespace-mapping='${HOME}/nym69=${HOME}/backup/tblspc/nym69'
 ```
 
-5. Принудительное переключение WAL:
+7. Принудительное переключение WAL:
 
 ```sql
 SELECT pg_switch_wal();
 ```
 
-6. Предварительное создание служебных каталогов на резервном узле по `ssh`.
-7. Перенос полной копии на резервный узел через `rsync`.
+8. Передача полной копии на резервный узел через `rsync`.
 
 Ключевой фрагмент сценария `stage1_backup.sh`:
 
@@ -175,7 +173,10 @@ export BACKUP_DIR="$HOME/backup"
 export STANDBY_USER=postgres2
 export STANDBY_HOST=pg132
 
-ssh "$STANDBY_USER@$STANDBY_HOST" "mkdir -p /var/db/postgres2/archive /var/db/postgres2/backup /var/db/postgres2/transfer /var/db/postgres2/failover_pgdata && chmod 700 /var/db/postgres2/archive /var/db/postgres2/transfer /var/db/postgres2/failover_pgdata"
+ssh "$STANDBY_USER@$STANDBY_HOST" "pg_ctl -D /var/db/postgres2/failover_pgdata stop -m fast >/dev/null 2>&1 || true; \
+pg_ctl -D /var/db/postgres2/stage4_pgdata stop -m fast >/dev/null 2>&1 || true; \
+rm -rf /var/db/postgres2/archive /var/db/postgres2/backup /var/db/postgres2/failover_pgdata /var/db/postgres2/stage4_pgdata /var/db/postgres2/sbm10 /var/db/postgres2/nym69; \
+mkdir -p /var/db/postgres2/archive /var/db/postgres2/backup /var/db/postgres2/transfer /var/db/postgres2/failover_pgdata"
 
 psql -v ON_ERROR_STOP=1 -p "9099" -d postgres <<SQL
 ALTER SYSTEM SET wal_level = 'replica';
@@ -297,11 +298,10 @@ Vtotal ≈ 1.2 GB + 24.9 GB = 26.1 GB
 
 В этом сценарии предполагается полная недоступность основного узла. Для восстановления используется резервный узел и копия данных, полученная на этапе 1.
 
-Сценарий запускается локально на резервном узле:
+Сценарий запускается на резервном узле:
 
 ```bash
-cd /Users/skadibtw/ddss/lab2
-bash scripts/stage2_failover.sh
+bash ~/lab2/scripts/stage2_failover.sh
 ```
 
 Сценарий выполняет следующие действия на резервном узле:
@@ -394,11 +394,10 @@ pg_ctl -D "$HOME/nwc36" restart -m fast
 
 Несмотря на то, что повреждение данных является частичным (потеряно только одно табличное пространство), мы выполняем полное восстановление всего кластера из резервной копии. По условию задания исходный каталог `PGDATA` при этом считается недоступным, поэтому полное восстановление выполняется в новые директории.
 
-Сценарий запускается локально на основном узле:
+Сценарий запускается на основном узле:
 
 ```bash
-cd /Users/skadibtw/ddss/lab2
-bash scripts/stage3_restore_primary.sh
+bash ~/lab2/scripts/stage3_restore_primary.sh
 ```
 
 Сценарий выполняет:
@@ -470,11 +469,10 @@ psql -p 9099 -d postgres \
 
 На первом шаге в каждую таблицу были добавлены новые строки.
 
-Команда запуска подготовительного SQL-сценария на основном узле:
+Подготовительный SQL-сценарий запускается на основном узле:
 
 ```bash
-cd /Users/skadibtw/ddss/lab2
-psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity -f scripts/stage4_prepare.sql
+psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity -f ~/lab2/scripts/stage4_prepare.sql
 ```
 
 Сценарий выполняет:
@@ -530,11 +528,10 @@ SELECT pg_switch_wal();
 
 Для восстановления используется резервный узел. На нем разворачивается временный кластер из базовой копии, затем выполняется PITR до времени непосредственно перед ошибочным удалением. После этого из полученного состояния выгружается таблица `products` с помощью `pg_dump`, а затем дамп вручную переносится на основной узел и применяется через `pg_restore`.
 
-Сценарий запускается локально на резервном узле:
+Сценарий запускается на резервном узле:
 
 ```bash
-cd /Users/skadibtw/ddss/lab2
-TARGET_TIME='2026-03-21 18:42:11.512345+03' bash scripts/stage4_restore_from_reserve.sh
+TARGET_TIME='2026-03-21 18:42:11.512345+03' bash ~/lab2/scripts/stage4_restore_from_reserve.sh
 scp ${HOME}/transfer/products_before_delete.dump postgres0@pg125:/var/db/postgres0/transfer/products_before_delete.dump
 ```
 
