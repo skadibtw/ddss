@@ -303,8 +303,9 @@ bash scripts/stage2_failover.sh
 
 1. Создает новый каталог данных `FAILOVER_PGDATA=${HOME}/failover_pgdata`.
 2. Копирует в него базовую копию из каталога `${HOME}/backup/base`.
-3. Использует каталоги табличных пространств напрямую из резервной копии `${HOME}/backup/tblspc/...`.
-4. Добавляет параметры восстановления:
+3. Восстанавливает табличные пространства из `${HOME}/backup/tblspc/...` в `${HOME}/sbm10` и `${HOME}/nym69`.
+4. Перепривязывает ссылки в `pg_tblspc` на новые пути резервного узла.
+5. Добавляет параметры восстановления:
 
 ```text
 restore_command = 'cp ${HOME}/archive/%f %p'
@@ -312,14 +313,16 @@ recovery_target_timeline = 'latest'
 recovery_target_action = 'promote'
 ```
 
-5. Создает файл `recovery.signal`.
-6. Запускает PostgreSQL на резервном узле на порту `9099`.
-7. Проверяет доступность БД `bigbluecity` и таблицы `sales` через TCP-подключение под ролью `dbuser`.
+6. Создает файл `recovery.signal`.
+7. Запускает PostgreSQL на резервном узле на порту `9099`.
+8. Проверяет доступность БД `bigbluecity` и таблицы `sales` через TCP-подключение под ролью `dbuser`.
 
 Ключевой фрагмент сценария:
 
 ```bash
 rsync -aH --delete '${HOME}/backup/base/' '${HOME}/failover_pgdata/'
+rsync -aH --delete '${HOME}/backup/tblspc/sbm10/' '${HOME}/sbm10/'
+rsync -aH --delete '${HOME}/backup/tblspc/nym69/' '${HOME}/nym69/'
 
 cat >> '${HOME}/failover_pgdata/postgresql.auto.conf' <<CONF
 port = '9099'
@@ -530,7 +533,7 @@ scp ${HOME}/transfer/products_before_delete.dump postgres0@pg125:/var/db/postgre
 Сценарий делает следующее:
 
 1. На резервном узле разворачивает временный кластер `RESERVE_STAGE4_PGDATA=${HOME}/stage4_pgdata`.
-2. Использует каталоги табличных пространств напрямую из резервной копии `${HOME}/backup/tblspc/...`.
+2. Восстанавливает табличные пространства из `${HOME}/backup/tblspc/...` в `${HOME}/sbm10` и `${HOME}/nym69` и перепривязывает `pg_tblspc`.
 3. Указывает параметры восстановления:
 
 ```text

@@ -16,7 +16,7 @@ chmod 700 ${HOME}/archive ${HOME}/failover_pgdata ${HOME}/transfer
 
 Во всех `stage*.sh` сначала при необходимости правьте блок `export ...`, потом копируйте команды ниже.
 
-Для `stage2` и `stage4` отдельное восстановление tablespaces не нужно: используются каталоги из `${HOME}/backup/tblspc`.
+Для `stage2` и `stage4` скрипт восстанавливает tablespaces в `${HOME}/sbm10` и `${HOME}/nym69` и перепривязывает `pg_tblspc`.
 Для TCP-проверок и `pg_dump` используется `dbuser` / `secure_password_123` из первой лабы.
 
 ## 2. Этап 1: backup

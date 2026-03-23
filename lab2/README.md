@@ -31,7 +31,7 @@ mkdir -p ${HOME}/archive ${HOME}/failover_pgdata ${HOME}/transfer
 chmod 700 ${HOME}/archive ${HOME}/failover_pgdata ${HOME}/transfer
 ```
 
-Каталоги табличных пространств `${HOME}/backup/tblspc/...`, полученные на этапе 1, затем используются напрямую из резервной копии в этапах 2 и 4.
+На резервном узле этапы 2 и 4 восстанавливают данные табличных пространств из `${HOME}/backup/tblspc/...` в `${HOME}/sbm10` и `${HOME}/nym69` и перепривязывают `pg_tblspc` к этим путям.
 
 ## Порядок запуска
 
