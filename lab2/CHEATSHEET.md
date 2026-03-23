@@ -76,6 +76,8 @@ psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity -f scripts/stage4_prepare.sql
 
 Сохрани время из блока `RECOVERY TARGET TIME`.
 
+`stage4_prepare.sql` в конце сам делает `SELECT pg_switch_wal();`, чтобы нужный WAL успел попасть в архив для PITR.
+
 На `standby`:
 
 ```bash

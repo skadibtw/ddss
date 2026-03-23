@@ -45,3 +45,6 @@ WHERE id IN (
 
 \echo '=== AFTER DELETE ==='
 TABLE products;
+
+\echo '=== FORCE WAL SWITCH ==='
+SELECT pg_switch_wal();

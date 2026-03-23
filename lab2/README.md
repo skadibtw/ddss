@@ -47,3 +47,4 @@ chmod 700 ${HOME}/archive ${HOME}/failover_pgdata ${HOME}/transfer
 ```
 
 `TARGET_TIME` для этапа 4 берётся из вывода `stage4_prepare.sql`: это момент перед `DELETE`.
+В конце `stage4_prepare.sql` выполняется `pg_switch_wal()`, чтобы нужный WAL оказался в архиве до запуска PITR на резервном узле.
