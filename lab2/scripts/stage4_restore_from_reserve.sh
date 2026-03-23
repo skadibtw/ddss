@@ -22,8 +22,8 @@ fi
 pg_ctl -D "$STAGE4_PGDATA" stop -m fast >/dev/null 2>&1 || true
 rm -rf "$STAGE4_PGDATA"
 mkdir -p "$STAGE4_PGDATA" "$TRANSFER_DIR"
-chmod 700 "$STAGE4_PGDATA" "$TRANSFER_DIR"
 rsync -aH --delete "$BACKUP_BASE_DIR/" "$STAGE4_PGDATA/"
+chmod 700 "$STAGE4_PGDATA" "$TRANSFER_DIR"
 
 cat >> "$STAGE4_PGDATA/postgresql.auto.conf" <<CONF
 port = '$PITR_PORT'

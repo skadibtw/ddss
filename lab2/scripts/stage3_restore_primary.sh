@@ -26,12 +26,12 @@ pg_ctl -D "$PRIMARY_PGDATA" stop -m immediate >/dev/null 2>&1 || true
 echo "[2/5] prepare new locations"
 rm -rf "$PRIMARY_RESTORE_PGDATA" "$PRIMARY_RESTORE_TS1" "$PRIMARY_RESTORE_TS2"
 mkdir -p "$PRIMARY_RESTORE_PGDATA" "$PRIMARY_RESTORE_TS1" "$PRIMARY_RESTORE_TS2"
-chmod 700 "$PRIMARY_RESTORE_PGDATA" "$PRIMARY_RESTORE_TS1" "$PRIMARY_RESTORE_TS2"
 
 echo "[3/5] restore base backup into new PGDATA"
 rsync -aH --delete "$BACKUP_BASE_DIR/" "$PRIMARY_RESTORE_PGDATA/"
 rsync -aH --delete "$BACKUP_TS1_DIR/" "$PRIMARY_RESTORE_TS1/"
 rsync -aH --delete "$BACKUP_TS2_DIR/" "$PRIMARY_RESTORE_TS2/"
+chmod 700 "$PRIMARY_RESTORE_PGDATA" "$PRIMARY_RESTORE_TS1" "$PRIMARY_RESTORE_TS2"
 
 cat >> "$PRIMARY_RESTORE_PGDATA/postgresql.auto.conf" <<CONF
 port = '$PRIMARY_PORT'

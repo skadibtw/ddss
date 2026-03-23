@@ -14,8 +14,8 @@ echo "Run this stage on standby: postgres2@pg132"
 pg_ctl -D "$FAILOVER_PGDATA" stop -m fast >/dev/null 2>&1 || true
 rm -rf "$FAILOVER_PGDATA"
 mkdir -p "$FAILOVER_PGDATA"
-chmod 700 "$FAILOVER_PGDATA"
 rsync -aH --delete "$BACKUP_BASE_DIR/" "$FAILOVER_PGDATA/"
+chmod 700 "$FAILOVER_PGDATA"
 
 cat >> "$FAILOVER_PGDATA/postgresql.auto.conf" <<CONF
 port = '$STANDBY_PORT'
