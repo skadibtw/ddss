@@ -114,7 +114,7 @@ ssh -J s413099@helios.cs.ifmo.ru:2222 postgres2@pg132
 
 ## Этап 1. Резервное копирование
 
-Сначала были подготовлены скрипты, в которых все пути, порты и узлы прописаны в явном виде. Вы можете выделять команды и выполнять их в консоли построчно.
+Сначала были подготовлены скрипты, в начале которых вынесен короткий блок `export ...` с путями, портами и именами узлов. После этого команды можно выполнять целиком или копировать построчно.
 
 Далее на основном узле была настроена архивизация WAL и создана первоначальная полная копия.
 
@@ -163,6 +163,15 @@ SELECT pg_switch_wal();
 Ключевой фрагмент сценария `stage1_backup.sh`:
 
 ```bash
+export PRIMARY_PGDATA="$HOME/nwc36"
+export PRIMARY_PORT=9099
+export PRIMARY_TS1="$HOME/sbm10"
+export PRIMARY_TS2="$HOME/nym69"
+export ARCHIVE_DIR="$HOME/archive"
+export BACKUP_DIR="$HOME/backup"
+export STANDBY_USER=postgres2
+export STANDBY_HOST=pg132
+
 psql -v ON_ERROR_STOP=1 -p "9099" -d postgres <<SQL
 ALTER SYSTEM SET wal_level = 'replica';
 ALTER SYSTEM SET archive_mode = 'on';
@@ -170,11 +179,13 @@ ALTER SYSTEM SET archive_timeout = '300';
 ALTER SYSTEM SET archive_command = 'test ! -f ${HOME}/archive/%f && cp %p ${HOME}/archive/%f && scp -q ${HOME}/archive/%f postgres2@pg132:/var/db/postgres2/archive/%f';
 SQL
 
-pg_ctl -D "${HOME}/nwc36" restart -m fast
+grep -qxF 'local   replication   postgres0   peer' "$PRIMARY_PGDATA/pg_hba.conf" || echo 'local   replication   postgres0   peer' >> "$PRIMARY_PGDATA/pg_hba.conf"
 
-pg_basebackup -p 9099 -D "${HOME}/backup/base" -Fp -X stream -P -c fast \
-  --tablespace-mapping="${HOME}/sbm10=${HOME}/backup/tblspc/sbm10" \
-  --tablespace-mapping="${HOME}/nym69=${HOME}/backup/tblspc/nym69"
+pg_ctl -D "$PRIMARY_PGDATA" restart -m fast
+
+pg_basebackup -p "$PRIMARY_PORT" -D "${HOME}/backup/base" -Fp -X stream -P -c fast \
+  --tablespace-mapping="$PRIMARY_TS1=${HOME}/backup/tblspc/sbm10" \
+  --tablespace-mapping="$PRIMARY_TS2=${HOME}/backup/tblspc/nym69"
 ```
 
 Проверка параметров архивирования на основном узле:
@@ -292,7 +303,9 @@ bash scripts/stage2_failover.sh
 
 1. Создает новый каталог данных `FAILOVER_PGDATA=${HOME}/failover_pgdata`.
 2. Копирует в него базовую копию из каталога `${HOME}/backup/base`.
-3. Добавляет параметры восстановления:
+3. Восстанавливает каталоги табличных пространств в `${HOME}/failover_ts1` и `${HOME}/failover_ts2`.
+4. Пересоздает ссылки в `pg_tblspc`.
+5. Добавляет параметры восстановления:
 
 ```text
 restore_command = 'cp ${HOME}/archive/%f %p'
@@ -300,14 +313,16 @@ recovery_target_timeline = 'latest'
 recovery_target_action = 'promote'
 ```
 
-4. Создает файл `recovery.signal`.
-5. Запускает PostgreSQL на резервном узле на порту `9099`.
-6. Проверяет доступность БД `bigbluecity` и таблицы `sales`.
+6. Создает файл `recovery.signal`.
+7. Запускает PostgreSQL на резервном узле на порту `9099`.
+8. Проверяет доступность БД `bigbluecity` и таблицы `sales`.
 
 Ключевой фрагмент сценария:
 
 ```bash
 rsync -aH --delete '${HOME}/backup/base/' '${HOME}/failover_pgdata/'
+rsync -aH --delete '${HOME}/backup/tblspc/sbm10/' '${HOME}/failover_ts1/'
+rsync -aH --delete '${HOME}/backup/tblspc/nym69/' '${HOME}/failover_ts2/'
 
 cat >> '${HOME}/failover_pgdata/postgresql.auto.conf' <<CONF
 port = '9099'
@@ -325,7 +340,7 @@ pg_ctl -D '${HOME}/failover_pgdata' -l '${HOME}/failover_pgdata/startup.log' sta
 Проверка результата на резервном узле:
 
 ```bash
-psql -v ON_ERROR_STOP=1 -h localhost -p 9099 -d bigbluecity \
+psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity \
   -c 'SELECT pg_is_in_recovery(), count(*) FROM sales;'
 ```
 
@@ -409,6 +424,8 @@ rsync -aH --delete "${HOME}/backup/base/" "${HOME}/nwc36_restore/"
 rsync -aH --delete "${HOME}/backup/tblspc/sbm10/" "${HOME}/restore_ts1/"
 rsync -aH --delete "${HOME}/backup/tblspc/nym69/" "${HOME}/restore_ts2/"
 
+chmod 700 "${HOME}/nwc36_restore" "${HOME}/restore_ts1" "${HOME}/restore_ts2"
+
 touch "${HOME}/nwc36_restore/recovery.signal"
 
 restore_command = 'cp ${HOME}/archive/%f %p'
@@ -417,7 +434,7 @@ restore_command = 'cp ${HOME}/archive/%f %p'
 Проверка доступности данных после восстановления на основном узле:
 
 ```bash
-psql -v ON_ERROR_STOP=1 -h localhost -p 9099 -d bigbluecity \
+psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity \
   -c 'SELECT pg_is_in_recovery(), count(*) FROM sales;'
 ```
 
@@ -515,7 +532,8 @@ scp ${HOME}/transfer/products_before_delete.dump postgres0@pg125:/var/db/postgre
 Сценарий делает следующее:
 
 1. На резервном узле разворачивает временный кластер `RESERVE_STAGE4_PGDATA=${HOME}/stage4_pgdata`.
-2. Указывает параметры восстановления:
+2. Восстанавливает каталоги табличных пространств в `${HOME}/stage4_ts1` и `${HOME}/stage4_ts2` и пересоздает ссылки в `pg_tblspc`.
+3. Указывает параметры восстановления:
 
 ```text
 restore_command = 'cp ${HOME}/archive/%f %p'
@@ -524,27 +542,27 @@ recovery_target_inclusive = 'true'
 recovery_target_action = 'promote'
 ```
 
-3. Запускает PITR на резервном узле.
-4. Выполняет:
+4. Запускает PITR на резервном узле.
+5. Выполняет:
 
 ```bash
-pg_dump -h localhost -p 9191 -d bigbluecity -Fc -t public.products -f ${HOME}/transfer/products_before_delete.dump
+pg_dump -p 9191 -d bigbluecity -Fc -t public.products -f ${HOME}/transfer/products_before_delete.dump
 ```
 
-5. После этого дамп вручную переносится на основной узел.
-6. На основном узле затем выполняется:
+6. После этого дамп вручную переносится на основной узел.
+7. На основном узле затем выполняется:
 
 ```bash
 mkdir -p ${HOME}/transfer
 pg_restore --clean --if-exists --no-owner --no-privileges \
-  -h localhost -p 9099 -d bigbluecity -t public.products \
+  -p 9099 -d bigbluecity -t public.products \
   ${HOME}/transfer/products_before_delete.dump
 ```
 
 Проверка результата на основном узле:
 
 ```bash
-psql -v ON_ERROR_STOP=1 -h localhost -p 9099 -d bigbluecity -c 'TABLE products;'
+psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity -c 'TABLE products;'
 ```
 
 Ожидаемый результат: таблица `products` возвращается в состояние до ошибочного удаления, включая только что добавленные строки.
