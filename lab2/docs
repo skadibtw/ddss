@@ -1,0 +1,2 @@
+      ssh -J s413099@helios.cs.ifmo.ru:2222 postgres0@pg125
+      ssh -J s413099@helios.cs.ifmo.ru:2222 postgres2@pg132
