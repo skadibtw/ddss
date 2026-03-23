@@ -67,7 +67,18 @@ if ! pg_ctl -D "$STAGE4_PGDATA" -l "$STAGE4_PGDATA/startup.log" start; then
   cat "$STAGE4_PGDATA/startup.log"
   exit 1
 fi
-sleep 5
+for _ in $(seq 1 20); do
+  if pg_isready -h localhost -p "$PITR_PORT" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+if ! pg_isready -h localhost -p "$PITR_PORT"; then
+  echo
+  echo "Startup log:"
+  cat "$STAGE4_PGDATA/startup.log"
+  exit 1
+fi
 PGPASSWORD="$DB_PASSWORD" psql -v ON_ERROR_STOP=1 -h localhost -U "$DB_USER" -p "$PITR_PORT" -d "$DB_NAME" -c 'TABLE products;'
 PGPASSWORD="$DB_PASSWORD" pg_dump -h localhost -U "$DB_USER" -p "$PITR_PORT" -d "$DB_NAME" -Fc -t public.products -f "$DUMP_FILE"
 
