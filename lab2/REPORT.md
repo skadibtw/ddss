@@ -142,6 +142,7 @@ ALTER SYSTEM SET archive_command = 'test ! -f ${HOME}/archive/%f && cp %p ${HOME
 
 ```bash
 pg_basebackup \
+  -p 9099 \
   -D '${HOME}/backup/base' \
   -Fp \
   -X stream \
@@ -171,7 +172,7 @@ SQL
 
 pg_ctl -D "${HOME}/nwc36" restart -m fast
 
-pg_basebackup -D "${HOME}/backup/base" -Fp -X stream -P -c fast \
+pg_basebackup -p 9099 -D "${HOME}/backup/base" -Fp -X stream -P -c fast \
   --tablespace-mapping="${HOME}/sbm10=${HOME}/backup/tblspc/sbm10" \
   --tablespace-mapping="${HOME}/nym69=${HOME}/backup/tblspc/nym69"
 ```

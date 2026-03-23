@@ -27,7 +27,7 @@ pg_ctl -D "${HOME}/nwc36" restart -m fast
 echo "[4/6] create initial base backup"
 rm -rf "${HOME}/backup/base" "${HOME}/backup/tblspc/sbm10" "${HOME}/backup/tblspc/nym69"
 mkdir -p "${HOME}/backup/base" "${HOME}/backup/tblspc/sbm10" "${HOME}/backup/tblspc/nym69"
-pg_basebackup -D "${HOME}/backup/base" -Fp -X stream -P -c fast \
+pg_basebackup -p 9099 -D "${HOME}/backup/base" -Fp -X stream -P -c fast \
   --tablespace-mapping="${HOME}/sbm10=${HOME}/backup/tblspc/sbm10" \
   --tablespace-mapping="${HOME}/nym69=${HOME}/backup/tblspc/nym69"
 
