@@ -10,8 +10,8 @@ ssh -J s413099@helios.cs.ifmo.ru:2222 postgres2@pg132
 ## 1. Один раз на standby
 
 ```bash
-mkdir -p /tmp/ddss_lab2_archive /tmp/ddss_lab2_failover_pgdata /tmp/ddss_lab2_transfer
-chmod 700 /tmp/ddss_lab2_archive /tmp/ddss_lab2_failover_pgdata /tmp/ddss_lab2_transfer
+mkdir -p ${HOME}/archive ${HOME}/failover_pgdata ${HOME}/transfer
+chmod 700 ${HOME}/archive ${HOME}/failover_pgdata ${HOME}/transfer
 ```
 
 ## 2. Этап 1: backup
@@ -33,7 +33,7 @@ psql -v ON_ERROR_STOP=1 -p 9099 -d postgres -c 'SHOW archive_mode; SHOW archive_
 На `standby`:
 
 ```bash
-ls -lah /tmp/ddss_lab2_backup /tmp/ddss_lab2_archive
+ls -lah ${HOME}/backup ${HOME}/archive
 ```
 
 ## 3. Этап 2: failover
@@ -76,13 +76,13 @@ psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity -f scripts/stage4_prepare.sql
 ```bash
 cd /Users/skadibtw/ddss/lab2
 TARGET_TIME='YYYY-MM-DD HH24:MI:SS.US+TZ' bash scripts/stage4_restore_from_reserve.sh
-scp /tmp/ddss_lab2_transfer/products_before_delete.dump postgres0@pg125:/tmp/ddss_lab2_transfer/products_before_delete.dump
+scp ${HOME}/transfer/products_before_delete.dump postgres0@pg125:${HOME}/transfer/products_before_delete.dump
 ```
 
 На `primary`:
 
 ```bash
-mkdir -p /tmp/ddss_lab2_transfer
-pg_restore --clean --if-exists --no-owner --no-privileges -h localhost -p 9099 -d bigbluecity -t public.products /tmp/ddss_lab2_transfer/products_before_delete.dump
+mkdir -p ${HOME}/transfer
+pg_restore --clean --if-exists --no-owner --no-privileges -h localhost -p 9099 -d bigbluecity -t public.products ${HOME}/transfer/products_before_delete.dump
 psql -v ON_ERROR_STOP=1 -h localhost -p 9099 -d bigbluecity -c 'TABLE products;'
 ```

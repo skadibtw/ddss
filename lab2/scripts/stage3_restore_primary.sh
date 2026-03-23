@@ -11,19 +11,19 @@ echo "[1/5] stop broken primary cluster"
 pg_ctl -D "${HOME}/nwc36" stop -m immediate >/dev/null 2>&1 || true
 
 echo "[2/5] prepare new locations"
-rm -rf "${HOME}/nwc36_restore" "/tmp/ddss_lab2_restore_ts1" "/tmp/ddss_lab2_restore_ts2"
-mkdir -p "${HOME}/nwc36_restore" "/tmp/ddss_lab2_restore_ts1" "/tmp/ddss_lab2_restore_ts2"
+rm -rf "${HOME}/nwc36_restore" "${HOME}/restore_ts1" "${HOME}/restore_ts2"
+mkdir -p "${HOME}/nwc36_restore" "${HOME}/restore_ts1" "${HOME}/restore_ts2"
 
 echo "[3/5] restore base backup into new PGDATA"
-rsync -aH --delete "/tmp/ddss_lab2_backup/base/" "${HOME}/nwc36_restore/"
-rsync -aH --delete "/tmp/ddss_lab2_backup/tblspc/sbm10/" "/tmp/ddss_lab2_restore_ts1/"
-rsync -aH --delete "/tmp/ddss_lab2_backup/tblspc/nym69/" "/tmp/ddss_lab2_restore_ts2/"
+rsync -aH --delete "${HOME}/backup/base/" "${HOME}/nwc36_restore/"
+rsync -aH --delete "${HOME}/backup/tblspc/sbm10/" "${HOME}/restore_ts1/"
+rsync -aH --delete "${HOME}/backup/tblspc/nym69/" "${HOME}/restore_ts2/"
 
 cat >> "${HOME}/nwc36_restore/postgresql.auto.conf" <<CONF
 port = '9099'
 listen_addresses = 'localhost'
 unix_socket_directories = '/tmp'
-restore_command = 'cp /tmp/ddss_lab2_archive/%f %p'
+restore_command = 'cp ${HOME}/archive/%f %p'
 recovery_target_timeline = 'latest'
 recovery_target_action = 'promote'
 CONF
@@ -39,8 +39,8 @@ for link in '${HOME}/nwc36_restore'/pg_tblspc/*; do
   oid="\$(basename "\${link}")"
   target="\$(readlink "\${link}")"
   case "\${target}" in
-    *sbm10*) TS_MAP["\${oid}"]='/tmp/ddss_lab2_restore_ts1' ;;
-    *nym69*) TS_MAP["\${oid}"]='/tmp/ddss_lab2_restore_ts2' ;;
+    *sbm10*) TS_MAP["\${oid}"]='${HOME}/restore_ts1' ;;
+    *nym69*) TS_MAP["\${oid}"]='${HOME}/restore_ts2' ;;
   esac
 done
 rm -f '${HOME}/nwc36_restore'/pg_tblspc/*

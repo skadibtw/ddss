@@ -134,7 +134,7 @@ bash scripts/stage1_backup.sh
 ALTER SYSTEM SET wal_level = 'replica';
 ALTER SYSTEM SET archive_mode = 'on';
 ALTER SYSTEM SET archive_timeout = '300';
-ALTER SYSTEM SET archive_command = 'test ! -f /tmp/ddss_lab2_archive/%f && cp %p /tmp/ddss_lab2_archive/%f && scp -q /tmp/ddss_lab2_archive/%f postgres2@pg132:/tmp/ddss_lab2_archive/%f';
+ALTER SYSTEM SET archive_command = 'test ! -f ${HOME}/archive/%f && cp %p ${HOME}/archive/%f && scp -q ${HOME}/archive/%f postgres2@pg132:${HOME}/archive/%f';
 ```
 
 3. Перезапуск кластера на основном узле для применения `archive_mode`.
@@ -142,13 +142,13 @@ ALTER SYSTEM SET archive_command = 'test ! -f /tmp/ddss_lab2_archive/%f && cp %p
 
 ```bash
 pg_basebackup \
-  -D '/tmp/ddss_lab2_backup/base' \
+  -D '${HOME}/backup/base' \
   -Fp \
   -X stream \
   -P \
   -c fast \
-  --tablespace-mapping='${HOME}/sbm10=/tmp/ddss_lab2_backup/tblspc/sbm10' \
-  --tablespace-mapping='${HOME}/nym69=/tmp/ddss_lab2_backup/tblspc/nym69'
+  --tablespace-mapping='${HOME}/sbm10=${HOME}/backup/tblspc/sbm10' \
+  --tablespace-mapping='${HOME}/nym69=${HOME}/backup/tblspc/nym69'
 ```
 
 5. Принудительное переключение WAL:
@@ -166,14 +166,14 @@ psql -v ON_ERROR_STOP=1 -p "9099" -d postgres <<SQL
 ALTER SYSTEM SET wal_level = 'replica';
 ALTER SYSTEM SET archive_mode = 'on';
 ALTER SYSTEM SET archive_timeout = '300';
-ALTER SYSTEM SET archive_command = 'test ! -f /tmp/ddss_lab2_archive/%f && cp %p /tmp/ddss_lab2_archive/%f && scp -q /tmp/ddss_lab2_archive/%f postgres2@pg132:/tmp/ddss_lab2_archive/%f';
+ALTER SYSTEM SET archive_command = 'test ! -f ${HOME}/archive/%f && cp %p ${HOME}/archive/%f && scp -q ${HOME}/archive/%f postgres2@pg132:${HOME}/archive/%f';
 SQL
 
 pg_ctl -D "${HOME}/nwc36" restart -m fast
 
-pg_basebackup -D "/tmp/ddss_lab2_backup/base" -Fp -X stream -P -c fast \
-  --tablespace-mapping="${HOME}/sbm10=/tmp/ddss_lab2_backup/tblspc/sbm10" \
-  --tablespace-mapping="${HOME}/nym69=/tmp/ddss_lab2_backup/tblspc/nym69"
+pg_basebackup -D "${HOME}/backup/base" -Fp -X stream -P -c fast \
+  --tablespace-mapping="${HOME}/sbm10=${HOME}/backup/tblspc/sbm10" \
+  --tablespace-mapping="${HOME}/nym69=${HOME}/backup/tblspc/nym69"
 ```
 
 Проверка параметров архивирования на основном узле:
@@ -192,7 +192,7 @@ psql -v ON_ERROR_STOP=1 -p 9099 -d postgres \
 
  archive_command
 --------------------------------------------------------------------------------
- test ! -f /tmp/ddss_lab2_archive/%f && cp %p /tmp/ddss_lab2_archive/%f && ...
+ test ! -f ${HOME}/archive/%f && cp %p ${HOME}/archive/%f && ...
 
  wal_level
 -----------
@@ -202,17 +202,17 @@ psql -v ON_ERROR_STOP=1 -p 9099 -d postgres \
 Проверка наличия резервной копии и WAL-архива на резервном узле:
 
 ```bash
-ls -lah /tmp/ddss_lab2_backup /tmp/ddss_lab2_archive
+ls -lah ${HOME}/backup ${HOME}/archive
 ```
 
 Пример ожидаемого результата:
 
 ```text
-/tmp/ddss_lab2_archive:
+${HOME}/archive:
 000000010000000000000001
 000000010000000000000002
 
-/tmp/ddss_lab2_backup:
+${HOME}/backup:
 base/
 tblspc/
 ```
@@ -289,12 +289,12 @@ bash scripts/stage2_failover.sh
 
 Сценарий выполняет следующие действия на резервном узле:
 
-1. Создает новый каталог данных `FAILOVER_PGDATA=/tmp/ddss_lab2_failover_pgdata`.
-2. Копирует в него базовую копию из каталога `/tmp/ddss_lab2_backup/base`.
+1. Создает новый каталог данных `FAILOVER_PGDATA=${HOME}/failover_pgdata`.
+2. Копирует в него базовую копию из каталога `${HOME}/backup/base`.
 3. Добавляет параметры восстановления:
 
 ```text
-restore_command = 'cp /tmp/ddss_lab2_archive/%f %p'
+restore_command = 'cp ${HOME}/archive/%f %p'
 recovery_target_timeline = 'latest'
 recovery_target_action = 'promote'
 ```
@@ -306,19 +306,19 @@ recovery_target_action = 'promote'
 Ключевой фрагмент сценария:
 
 ```bash
-rsync -aH --delete '/tmp/ddss_lab2_backup/base/' '/tmp/ddss_lab2_failover_pgdata/'
+rsync -aH --delete '${HOME}/backup/base/' '${HOME}/failover_pgdata/'
 
-cat >> '/tmp/ddss_lab2_failover_pgdata/postgresql.auto.conf' <<CONF
+cat >> '${HOME}/failover_pgdata/postgresql.auto.conf' <<CONF
 port = '9099'
 listen_addresses = 'localhost'
 unix_socket_directories = '/tmp'
-restore_command = 'cp /tmp/ddss_lab2_archive/%f %p'
+restore_command = 'cp ${HOME}/archive/%f %p'
 recovery_target_timeline = 'latest'
 recovery_target_action = 'promote'
 CONF
 
-touch '/tmp/ddss_lab2_failover_pgdata/recovery.signal'
-pg_ctl -D '/tmp/ddss_lab2_failover_pgdata' -l '/tmp/ddss_lab2_failover_pgdata/startup.log' start
+touch '${HOME}/failover_pgdata/recovery.signal'
+pg_ctl -D '${HOME}/failover_pgdata' -l '${HOME}/failover_pgdata/startup.log' start
 ```
 
 Проверка результата на резервном узле:
@@ -393,8 +393,8 @@ $HOME/nwc36_restore
 4. Восстановление каталогов табличных пространств в новые директории:
 
 ```text
-/tmp/ddss_lab2_restore_ts1
-/tmp/ddss_lab2_restore_ts2
+${HOME}/restore_ts1
+${HOME}/restore_ts2
 ```
 
 5. Пересоздание ссылок в `pg_tblspc`.
@@ -404,13 +404,13 @@ $HOME/nwc36_restore
 Ключевой фрагмент сценария:
 
 ```bash
-rsync -aH --delete "/tmp/ddss_lab2_backup/base/" "${HOME}/nwc36_restore/"
-rsync -aH --delete "/tmp/ddss_lab2_backup/tblspc/sbm10/" "/tmp/ddss_lab2_restore_ts1/"
-rsync -aH --delete "/tmp/ddss_lab2_backup/tblspc/nym69/" "/tmp/ddss_lab2_restore_ts2/"
+rsync -aH --delete "${HOME}/backup/base/" "${HOME}/nwc36_restore/"
+rsync -aH --delete "${HOME}/backup/tblspc/sbm10/" "${HOME}/restore_ts1/"
+rsync -aH --delete "${HOME}/backup/tblspc/nym69/" "${HOME}/restore_ts2/"
 
 touch "${HOME}/nwc36_restore/recovery.signal"
 
-restore_command = 'cp /tmp/ddss_lab2_archive/%f %p'
+restore_command = 'cp ${HOME}/archive/%f %p'
 ```
 
 Проверка доступности данных после восстановления на основном узле:
@@ -432,8 +432,8 @@ psql -p 9099 -d postgres \
 ```text
    spcname   |     pg_tablespace_location
 -------------+----------------------------------
- nym69_space | /tmp/ddss_lab2_restore_ts2
- sbm10_space | /tmp/ddss_lab2_restore_ts1
+ nym69_space | ${HOME}/restore_ts2
+ sbm10_space | ${HOME}/restore_ts1
 ```
 
 Таким образом, база данных была полностью восстановлена на основном узле в новом каталоге, а дополнительные табличные пространства были успешно перенесены в новые директории.
@@ -508,16 +508,16 @@ WHERE id IN (
 ```bash
 cd /Users/skadibtw/ddss/lab2
 TARGET_TIME='2026-03-21 18:42:11.512345+03' bash scripts/stage4_restore_from_reserve.sh
-scp /tmp/ddss_lab2_transfer/products_before_delete.dump postgres0@pg125:/tmp/ddss_lab2_transfer/products_before_delete.dump
+scp ${HOME}/transfer/products_before_delete.dump postgres0@pg125:${HOME}/transfer/products_before_delete.dump
 ```
 
 Сценарий делает следующее:
 
-1. На резервном узле разворачивает временный кластер `RESERVE_STAGE4_PGDATA=/tmp/ddss_lab2_stage4_pgdata`.
+1. На резервном узле разворачивает временный кластер `RESERVE_STAGE4_PGDATA=${HOME}/stage4_pgdata`.
 2. Указывает параметры восстановления:
 
 ```text
-restore_command = 'cp /tmp/ddss_lab2_archive/%f %p'
+restore_command = 'cp ${HOME}/archive/%f %p'
 recovery_target_time = '2026-03-21 18:42:11.512345+03'
 recovery_target_inclusive = 'true'
 recovery_target_action = 'promote'
@@ -527,17 +527,17 @@ recovery_target_action = 'promote'
 4. Выполняет:
 
 ```bash
-pg_dump -h localhost -p 9191 -d bigbluecity -Fc -t public.products -f /tmp/ddss_lab2_transfer/products_before_delete.dump
+pg_dump -h localhost -p 9191 -d bigbluecity -Fc -t public.products -f ${HOME}/transfer/products_before_delete.dump
 ```
 
 5. После этого дамп вручную переносится на основной узел.
 6. На основном узле затем выполняется:
 
 ```bash
-mkdir -p /tmp/ddss_lab2_transfer
+mkdir -p ${HOME}/transfer
 pg_restore --clean --if-exists --no-owner --no-privileges \
   -h localhost -p 9099 -d bigbluecity -t public.products \
-  /tmp/ddss_lab2_transfer/products_before_delete.dump
+  ${HOME}/transfer/products_before_delete.dump
 ```
 
 Проверка результата на основном узле:

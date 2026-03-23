@@ -3,8 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-if [ -d "/tmp/ddss_lab2_backup/base" ]; then
-  BASE_MB="$(du -sm "/tmp/ddss_lab2_backup/base" | awk '{print $1}')"
+if [ -d "${HOME}/backup/base" ]; then
+  BASE_MB="$(du -sm "${HOME}/backup/base" | awk '{print $1}')"
 else
   BASE_MB="0"
 fi

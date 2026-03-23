@@ -20,14 +20,14 @@
 ## Подготовка
 
 1. Все команды в скриптах уже прописаны с реальными путями и портами. Вы можете просто выделять нужные команды, копировать их и выполнять в терминале построчно.
-2. При необходимости скорректируйте пути (например, `/tmp/ddss_lab2_backup`) или порты (например, `9099`) напрямую в тексте нужного скрипта перед копированием.
+2. При необходимости скорректируйте пути (например, `${HOME}/backup`) или порты (например, `9099`) напрямую в тексте нужного скрипта перед копированием.
 
 3. Настройте вход по SSH-ключу с основного узла на резервный, иначе `scp` в `archive_command` не сработает. Пароли в скрипты не вшиваются.
 4. На резервном узле заранее создайте служебные каталоги:
 
 ```bash
-mkdir -p /tmp/ddss_lab2_archive /tmp/ddss_lab2_failover_pgdata /tmp/ddss_lab2_transfer
-chmod 700 /tmp/ddss_lab2_archive /tmp/ddss_lab2_failover_pgdata /tmp/ddss_lab2_transfer
+mkdir -p ${HOME}/archive ${HOME}/failover_pgdata ${HOME}/transfer
+chmod 700 ${HOME}/archive ${HOME}/failover_pgdata ${HOME}/transfer
 ```
 
 ## Порядок запуска
@@ -39,8 +39,8 @@ chmod 700 /tmp/ddss_lab2_archive /tmp/ddss_lab2_failover_pgdata /tmp/ddss_lab2_t
 [primary] bash scripts/stage3_restore_primary.sh
 [primary] psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity -f scripts/stage4_prepare.sql
 [standby] TARGET_TIME='YYYY-MM-DD HH24:MI:SS.US+TZ' bash scripts/stage4_restore_from_reserve.sh
-[standby->primary] scp /tmp/ddss_lab2_transfer/products_before_delete.dump postgres0@pg125:/tmp/ddss_lab2_transfer/products_before_delete.dump
-[primary] pg_restore --clean --if-exists --no-owner --no-privileges -h localhost -p 9099 -d bigbluecity -t public.products /tmp/ddss_lab2_transfer/products_before_delete.dump
+[standby->primary] scp ${HOME}/transfer/products_before_delete.dump postgres0@pg125:${HOME}/transfer/products_before_delete.dump
+[primary] pg_restore --clean --if-exists --no-owner --no-privileges -h localhost -p 9099 -d bigbluecity -t public.products ${HOME}/transfer/products_before_delete.dump
 ```
 
 `TARGET_TIME` для этапа 4 берётся из вывода `stage4_prepare.sql`: это момент перед `DELETE`.
