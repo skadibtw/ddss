@@ -8,6 +8,8 @@ export ARCHIVE_DIR="$HOME/archive"
 export PITR_PORT=9191
 export PRIMARY_PORT=9099
 export DB_NAME=bigbluecity
+export DB_USER=dbuser
+export DB_PASSWORD=secure_password_123
 export DUMP_FILE="$TRANSFER_DIR/products_before_delete.dump"
 
 echo "Run this stage on standby: postgres2@pg132"
@@ -36,11 +38,11 @@ CONF
 touch "$STAGE4_PGDATA/recovery.signal"
 pg_ctl -D "$STAGE4_PGDATA" -l "$STAGE4_PGDATA/startup.log" start
 sleep 5
-psql -v ON_ERROR_STOP=1 -p "$PITR_PORT" -d "$DB_NAME" -c 'TABLE products;'
-pg_dump -p "$PITR_PORT" -d "$DB_NAME" -Fc -t public.products -f "$DUMP_FILE"
+PGPASSWORD="$DB_PASSWORD" psql -v ON_ERROR_STOP=1 -h localhost -U "$DB_USER" -p "$PITR_PORT" -d "$DB_NAME" -c 'TABLE products;'
+PGPASSWORD="$DB_PASSWORD" pg_dump -h localhost -U "$DB_USER" -p "$PITR_PORT" -d "$DB_NAME" -Fc -t public.products -f "$DUMP_FILE"
 
 echo
 echo "Dump created: ${DUMP_FILE}"
 echo "Next on primary:"
 echo "  scp '${DUMP_FILE}' 'postgres0@pg125:/var/db/postgres0/transfer/products_before_delete.dump'"
-echo "  pg_restore --clean --if-exists --no-owner --no-privileges -p '$PRIMARY_PORT' -d '$DB_NAME' -t public.products '${DUMP_FILE}'"
+echo "  PGPASSWORD='$DB_PASSWORD' pg_restore --clean --if-exists --no-owner --no-privileges -h localhost -U '$DB_USER' -p '$PRIMARY_PORT' -d '$DB_NAME' -t public.products '${DUMP_FILE}'"

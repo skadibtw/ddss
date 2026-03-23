@@ -6,6 +6,8 @@ export BACKUP_BASE_DIR="$HOME/backup/base"
 export ARCHIVE_DIR="$HOME/archive"
 export STANDBY_PORT=9099
 export DB_NAME=bigbluecity
+export DB_USER=dbuser
+export DB_PASSWORD=secure_password_123
 
 echo "Run this stage on standby: postgres2@pg132"
 
@@ -28,4 +30,4 @@ touch "$FAILOVER_PGDATA/recovery.signal"
 pg_ctl -D "$FAILOVER_PGDATA" -l "$FAILOVER_PGDATA/startup.log" start
 sleep 5
 pg_isready -p "$STANDBY_PORT"
-psql -v ON_ERROR_STOP=1 -p "$STANDBY_PORT" -d "$DB_NAME" -c "SELECT current_setting('port') AS port, pg_is_in_recovery() AS in_recovery, count(*) AS sales_rows FROM sales;"
+PGPASSWORD="$DB_PASSWORD" psql -v ON_ERROR_STOP=1 -h localhost -U "$DB_USER" -p "$STANDBY_PORT" -d "$DB_NAME" -c "SELECT current_setting('port') AS port, pg_is_in_recovery() AS in_recovery, count(*) AS sales_rows FROM sales;"

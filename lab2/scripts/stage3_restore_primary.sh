@@ -11,6 +11,8 @@ export BACKUP_TS2_DIR="$HOME/backup/tblspc/nym69"
 export ARCHIVE_DIR="$HOME/archive"
 export PRIMARY_PORT=9099
 export DB_NAME=bigbluecity
+export DB_USER=dbuser
+export DB_PASSWORD=secure_password_123
 
 echo "Run this stage on primary: postgres0@pg125"
 
@@ -65,7 +67,7 @@ echo "[5/5] start restored primary and verify"
 pg_ctl -D "$PRIMARY_RESTORE_PGDATA" -l "$PRIMARY_RESTORE_PGDATA/startup.log" start
 sleep 5
 pg_isready -p "$PRIMARY_PORT"
-psql -v ON_ERROR_STOP=1 -p "$PRIMARY_PORT" -d "$DB_NAME" -c "SELECT pg_is_in_recovery() AS in_recovery, count(*) AS sales_rows FROM sales;"
+PGPASSWORD="$DB_PASSWORD" psql -v ON_ERROR_STOP=1 -h localhost -U "$DB_USER" -p "$PRIMARY_PORT" -d "$DB_NAME" -c "SELECT pg_is_in_recovery() AS in_recovery, count(*) AS sales_rows FROM sales;"
 
 echo
 echo "Primary is restored in $PRIMARY_RESTORE_PGDATA"

@@ -314,7 +314,7 @@ recovery_target_action = 'promote'
 
 5. Создает файл `recovery.signal`.
 6. Запускает PostgreSQL на резервном узле на порту `9099`.
-7. Проверяет доступность БД `bigbluecity` и таблицы `sales`.
+7. Проверяет доступность БД `bigbluecity` и таблицы `sales` через TCP-подключение под ролью `dbuser`.
 
 Ключевой фрагмент сценария:
 
@@ -337,7 +337,7 @@ pg_ctl -D '${HOME}/failover_pgdata' -l '${HOME}/failover_pgdata/startup.log' sta
 Проверка результата на резервном узле:
 
 ```bash
-psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity \
+PGPASSWORD='secure_password_123' psql -v ON_ERROR_STOP=1 -h localhost -U dbuser -p 9099 -d bigbluecity \
   -c 'SELECT pg_is_in_recovery(), count(*) FROM sales;'
 ```
 
@@ -413,6 +413,7 @@ ${HOME}/restore_ts2
 5. Пересоздание ссылок в `pg_tblspc`.
 6. Настройку `restore_command` для применения архивных WAL.
 7. Запуск восстановленного кластера.
+8. Проверку доступности данных через TCP-подключение под ролью `dbuser`.
 
 Ключевой фрагмент сценария:
 
@@ -431,7 +432,7 @@ restore_command = 'cp ${HOME}/archive/%f %p'
 Проверка доступности данных после восстановления на основном узле:
 
 ```bash
-psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity \
+PGPASSWORD='secure_password_123' psql -v ON_ERROR_STOP=1 -h localhost -U dbuser -p 9099 -d bigbluecity \
   -c 'SELECT pg_is_in_recovery(), count(*) FROM sales;'
 ```
 
@@ -540,10 +541,10 @@ recovery_target_action = 'promote'
 ```
 
 4. Запускает PITR на резервном узле.
-5. Выполняет:
+5. Выполняет `pg_dump` через TCP-подключение под ролью `dbuser`:
 
 ```bash
-pg_dump -p 9191 -d bigbluecity -Fc -t public.products -f ${HOME}/transfer/products_before_delete.dump
+PGPASSWORD='secure_password_123' pg_dump -h localhost -U dbuser -p 9191 -d bigbluecity -Fc -t public.products -f ${HOME}/transfer/products_before_delete.dump
 ```
 
 6. После этого дамп вручную переносится на основной узел.
@@ -551,15 +552,15 @@ pg_dump -p 9191 -d bigbluecity -Fc -t public.products -f ${HOME}/transfer/produc
 
 ```bash
 mkdir -p ${HOME}/transfer
-pg_restore --clean --if-exists --no-owner --no-privileges \
-  -p 9099 -d bigbluecity -t public.products \
+PGPASSWORD='secure_password_123' pg_restore --clean --if-exists --no-owner --no-privileges \
+  -h localhost -U dbuser -p 9099 -d bigbluecity -t public.products \
   ${HOME}/transfer/products_before_delete.dump
 ```
 
 Проверка результата на основном узле:
 
 ```bash
-psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity -c 'TABLE products;'
+PGPASSWORD='secure_password_123' psql -v ON_ERROR_STOP=1 -h localhost -U dbuser -p 9099 -d bigbluecity -c 'TABLE products;'
 ```
 
 Ожидаемый результат: таблица `products` возвращается в состояние до ошибочного удаления, включая только что добавленные строки.

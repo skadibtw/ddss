@@ -17,6 +17,7 @@ chmod 700 ${HOME}/archive ${HOME}/failover_pgdata ${HOME}/transfer
 Во всех `stage*.sh` сначала при необходимости правьте блок `export ...`, потом копируйте команды ниже.
 
 Для `stage2` и `stage4` отдельное восстановление tablespaces не нужно: используются каталоги из `${HOME}/backup/tblspc`.
+Для TCP-проверок и `pg_dump` используется `dbuser` / `secure_password_123` из первой лабы.
 
 ## 2. Этап 1: backup
 
@@ -47,7 +48,7 @@ ls -lah ${HOME}/backup ${HOME}/archive
 ```bash
 cd /Users/skadibtw/ddss/lab2
 bash scripts/stage2_failover.sh
-psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity -c 'SELECT pg_is_in_recovery(), count(*) FROM sales;'
+PGPASSWORD='secure_password_123' psql -v ON_ERROR_STOP=1 -h localhost -U dbuser -p 9099 -d bigbluecity -c 'SELECT pg_is_in_recovery(), count(*) FROM sales;'
 ```
 
 ## 4. Этап 3: потеря tablespace и restore primary
@@ -60,7 +61,7 @@ psql -v ON_ERROR_STOP=0 -p 9099 -d bigbluecity -c 'SELECT count(*) FROM products
 pg_ctl -D "$HOME/nwc36" restart -m fast
 cd /Users/skadibtw/ddss/lab2
 bash scripts/stage3_restore_primary.sh
-psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity -c 'SELECT pg_is_in_recovery(), count(*) FROM sales;'
+PGPASSWORD='secure_password_123' psql -v ON_ERROR_STOP=1 -h localhost -U dbuser -p 9099 -d bigbluecity -c 'SELECT pg_is_in_recovery(), count(*) FROM sales;'
 psql -p 9099 -d postgres -c 'SELECT spcname, pg_tablespace_location(oid) FROM pg_tablespace ORDER BY spcname;'
 ```
 
@@ -87,6 +88,6 @@ scp ${HOME}/transfer/products_before_delete.dump postgres0@pg125:/var/db/postgre
 
 ```bash
 mkdir -p ${HOME}/transfer
-pg_restore --clean --if-exists --no-owner --no-privileges -p 9099 -d bigbluecity -t public.products ${HOME}/transfer/products_before_delete.dump
-psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity -c 'TABLE products;'
+PGPASSWORD='secure_password_123' pg_restore --clean --if-exists --no-owner --no-privileges -h localhost -U dbuser -p 9099 -d bigbluecity -t public.products ${HOME}/transfer/products_before_delete.dump
+PGPASSWORD='secure_password_123' psql -v ON_ERROR_STOP=1 -h localhost -U dbuser -p 9099 -d bigbluecity -c 'TABLE products;'
 ```
