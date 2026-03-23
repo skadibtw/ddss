@@ -64,7 +64,12 @@ done
 EOF
 
 echo "[5/5] start restored primary and verify"
-pg_ctl -D "$PRIMARY_RESTORE_PGDATA" -l "$PRIMARY_RESTORE_PGDATA/startup.log" start
+if ! pg_ctl -D "$PRIMARY_RESTORE_PGDATA" -l "$PRIMARY_RESTORE_PGDATA/startup.log" start; then
+  echo
+  echo "Startup log:"
+  cat "$PRIMARY_RESTORE_PGDATA/startup.log"
+  exit 1
+fi
 sleep 5
 pg_isready -p "$PRIMARY_PORT"
 PGPASSWORD="$DB_PASSWORD" psql -v ON_ERROR_STOP=1 -h localhost -U "$DB_USER" -p "$PRIMARY_PORT" -d "$DB_NAME" -c "SELECT pg_is_in_recovery() AS in_recovery, count(*) AS sales_rows FROM sales;"

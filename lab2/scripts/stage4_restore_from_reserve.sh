@@ -61,7 +61,12 @@ recovery_target_action = 'promote'
 CONF
 
 touch "$STAGE4_PGDATA/recovery.signal"
-pg_ctl -D "$STAGE4_PGDATA" -l "$STAGE4_PGDATA/startup.log" start
+if ! pg_ctl -D "$STAGE4_PGDATA" -l "$STAGE4_PGDATA/startup.log" start; then
+  echo
+  echo "Startup log:"
+  cat "$STAGE4_PGDATA/startup.log"
+  exit 1
+fi
 sleep 5
 PGPASSWORD="$DB_PASSWORD" psql -v ON_ERROR_STOP=1 -h localhost -U "$DB_USER" -p "$PITR_PORT" -d "$DB_NAME" -c 'TABLE products;'
 PGPASSWORD="$DB_PASSWORD" pg_dump -h localhost -U "$DB_USER" -p "$PITR_PORT" -d "$DB_NAME" -Fc -t public.products -f "$DUMP_FILE"
