@@ -1,7 +1,18 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export STAGE4_PGDATA="$HOME/stage4_pgdata"
+export STAGE4_TS1="$HOME/stage4_ts1"
+export STAGE4_TS2="$HOME/stage4_ts2"
+export TRANSFER_DIR="$HOME/transfer"
+export BACKUP_BASE_DIR="$HOME/backup/base"
+export BACKUP_TS1_DIR="$HOME/backup/tblspc/sbm10"
+export BACKUP_TS2_DIR="$HOME/backup/tblspc/nym69"
+export ARCHIVE_DIR="$HOME/archive"
+export PITR_PORT=9191
+export PRIMARY_PORT=9099
+export DB_NAME=bigbluecity
+export DUMP_FILE="$TRANSFER_DIR/products_before_delete.dump"
 
 echo "Run this stage on standby: postgres2@pg132"
 
@@ -10,53 +21,50 @@ if [ -z "${TARGET_TIME:-}" ]; then
   exit 1
 fi
 
-DUMP_FILE="${HOME}/transfer/products_before_delete.dump"
-
-pg_ctl -D "${HOME}/stage4_pgdata" stop -m fast >/dev/null 2>&1 || true
-rm -rf "${HOME}/stage4_pgdata"
-rm -rf "${HOME}/stage4_ts1" "${HOME}/stage4_ts2"
-mkdir -p "${HOME}/stage4_pgdata" "${HOME}/stage4_ts1" "${HOME}/stage4_ts2" "${HOME}/transfer"
-chmod 700 "${HOME}/stage4_pgdata" "${HOME}/stage4_ts1" "${HOME}/stage4_ts2" "${HOME}/transfer"
-rsync -aH --delete "${HOME}/backup/base/" "${HOME}/stage4_pgdata/"
-rsync -aH --delete "${HOME}/backup/tblspc/sbm10/" "${HOME}/stage4_ts1/"
-rsync -aH --delete "${HOME}/backup/tblspc/nym69/" "${HOME}/stage4_ts2/"
+pg_ctl -D "$STAGE4_PGDATA" stop -m fast >/dev/null 2>&1 || true
+rm -rf "$STAGE4_PGDATA" "$STAGE4_TS1" "$STAGE4_TS2"
+mkdir -p "$STAGE4_PGDATA" "$STAGE4_TS1" "$STAGE4_TS2" "$TRANSFER_DIR"
+chmod 700 "$STAGE4_PGDATA" "$STAGE4_TS1" "$STAGE4_TS2" "$TRANSFER_DIR"
+rsync -aH --delete "$BACKUP_BASE_DIR/" "$STAGE4_PGDATA/"
+rsync -aH --delete "$BACKUP_TS1_DIR/" "$STAGE4_TS1/"
+rsync -aH --delete "$BACKUP_TS2_DIR/" "$STAGE4_TS2/"
 
 bash -s <<EOF
 set -euo pipefail
 declare -A TS_MAP
-for link in '${HOME}/stage4_pgdata'/pg_tblspc/*; do
+for link in '$STAGE4_PGDATA'/pg_tblspc/*; do
   [ -L "\${link}" ] || continue
   oid="\$(basename "\${link}")"
   target="\$(readlink "\${link}")"
   case "\${target}" in
-    *sbm10*) TS_MAP["\${oid}"]='${HOME}/stage4_ts1' ;;
-    *nym69*) TS_MAP["\${oid}"]='${HOME}/stage4_ts2' ;;
+    *sbm10*) TS_MAP["\${oid}"]='$STAGE4_TS1' ;;
+    *nym69*) TS_MAP["\${oid}"]='$STAGE4_TS2' ;;
   esac
 done
-rm -f '${HOME}/stage4_pgdata'/pg_tblspc/*
+rm -f '$STAGE4_PGDATA'/pg_tblspc/*
 for oid in "\${!TS_MAP[@]}"; do
-  ln -s "\${TS_MAP[\${oid}]}" '${HOME}/stage4_pgdata'/pg_tblspc/"\${oid}"
+  ln -s "\${TS_MAP[\${oid}]}" '$STAGE4_PGDATA'/pg_tblspc/"\${oid}"
 done
 EOF
 
-cat >> "${HOME}/stage4_pgdata/postgresql.auto.conf" <<CONF
-port = '9191'
+cat >> "$STAGE4_PGDATA/postgresql.auto.conf" <<CONF
+port = '$PITR_PORT'
 listen_addresses = 'localhost'
 unix_socket_directories = '/tmp'
-restore_command = 'cp ${HOME}/archive/%f %p'
+restore_command = 'cp $ARCHIVE_DIR/%f %p'
 recovery_target_time = '${TARGET_TIME}'
 recovery_target_inclusive = 'true'
 recovery_target_action = 'promote'
 CONF
 
-touch "${HOME}/stage4_pgdata/recovery.signal"
-pg_ctl -D "${HOME}/stage4_pgdata" -l "${HOME}/stage4_pgdata/startup.log" start
+touch "$STAGE4_PGDATA/recovery.signal"
+pg_ctl -D "$STAGE4_PGDATA" -l "$STAGE4_PGDATA/startup.log" start
 sleep 5
-psql -v ON_ERROR_STOP=1 -p "9191" -d "bigbluecity" -c 'TABLE products;'
-pg_dump -p "9191" -d "bigbluecity" -Fc -t public.products -f "${DUMP_FILE}"
+psql -v ON_ERROR_STOP=1 -p "$PITR_PORT" -d "$DB_NAME" -c 'TABLE products;'
+pg_dump -p "$PITR_PORT" -d "$DB_NAME" -Fc -t public.products -f "$DUMP_FILE"
 
 echo
 echo "Dump created: ${DUMP_FILE}"
 echo "Next on primary:"
 echo "  scp '${DUMP_FILE}' 'postgres0@pg125:/var/db/postgres0/transfer/products_before_delete.dump'"
-echo "  pg_restore --clean --if-exists --no-owner --no-privileges -p '9099' -d 'bigbluecity' -t public.products '${DUMP_FILE}'"
+echo "  pg_restore --clean --if-exists --no-owner --no-privileges -p '$PRIMARY_PORT' -d '$DB_NAME' -t public.products '${DUMP_FILE}'"

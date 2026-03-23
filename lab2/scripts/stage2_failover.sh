@@ -1,48 +1,55 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export FAILOVER_PGDATA="$HOME/failover_pgdata"
+export FAILOVER_TS1="$HOME/failover_ts1"
+export FAILOVER_TS2="$HOME/failover_ts2"
+export BACKUP_BASE_DIR="$HOME/backup/base"
+export BACKUP_TS1_DIR="$HOME/backup/tblspc/sbm10"
+export BACKUP_TS2_DIR="$HOME/backup/tblspc/nym69"
+export ARCHIVE_DIR="$HOME/archive"
+export STANDBY_PORT=9099
+export DB_NAME=bigbluecity
 
 echo "Run this stage on standby: postgres2@pg132"
 
-pg_ctl -D "${HOME}/failover_pgdata" stop -m fast >/dev/null 2>&1 || true
-rm -rf "${HOME}/failover_pgdata"
-rm -rf "${HOME}/failover_ts1" "${HOME}/failover_ts2"
-mkdir -p "${HOME}/failover_pgdata" "${HOME}/failover_ts1" "${HOME}/failover_ts2"
-chmod 700 "${HOME}/failover_pgdata" "${HOME}/failover_ts1" "${HOME}/failover_ts2"
-rsync -aH --delete "${HOME}/backup/base/" "${HOME}/failover_pgdata/"
-rsync -aH --delete "${HOME}/backup/tblspc/sbm10/" "${HOME}/failover_ts1/"
-rsync -aH --delete "${HOME}/backup/tblspc/nym69/" "${HOME}/failover_ts2/"
+pg_ctl -D "$FAILOVER_PGDATA" stop -m fast >/dev/null 2>&1 || true
+rm -rf "$FAILOVER_PGDATA" "$FAILOVER_TS1" "$FAILOVER_TS2"
+mkdir -p "$FAILOVER_PGDATA" "$FAILOVER_TS1" "$FAILOVER_TS2"
+chmod 700 "$FAILOVER_PGDATA" "$FAILOVER_TS1" "$FAILOVER_TS2"
+rsync -aH --delete "$BACKUP_BASE_DIR/" "$FAILOVER_PGDATA/"
+rsync -aH --delete "$BACKUP_TS1_DIR/" "$FAILOVER_TS1/"
+rsync -aH --delete "$BACKUP_TS2_DIR/" "$FAILOVER_TS2/"
 
 bash -s <<EOF
 set -euo pipefail
 declare -A TS_MAP
-for link in '${HOME}/failover_pgdata'/pg_tblspc/*; do
+for link in '$FAILOVER_PGDATA'/pg_tblspc/*; do
   [ -L "\${link}" ] || continue
   oid="\$(basename "\${link}")"
   target="\$(readlink "\${link}")"
   case "\${target}" in
-    *sbm10*) TS_MAP["\${oid}"]='${HOME}/failover_ts1' ;;
-    *nym69*) TS_MAP["\${oid}"]='${HOME}/failover_ts2' ;;
+    *sbm10*) TS_MAP["\${oid}"]='$FAILOVER_TS1' ;;
+    *nym69*) TS_MAP["\${oid}"]='$FAILOVER_TS2' ;;
   esac
 done
-rm -f '${HOME}/failover_pgdata'/pg_tblspc/*
+rm -f '$FAILOVER_PGDATA'/pg_tblspc/*
 for oid in "\${!TS_MAP[@]}"; do
-  ln -s "\${TS_MAP[\${oid}]}" '${HOME}/failover_pgdata'/pg_tblspc/"\${oid}"
+  ln -s "\${TS_MAP[\${oid}]}" '$FAILOVER_PGDATA'/pg_tblspc/"\${oid}"
 done
 EOF
 
-cat >> "${HOME}/failover_pgdata/postgresql.auto.conf" <<CONF
-port = '9099'
+cat >> "$FAILOVER_PGDATA/postgresql.auto.conf" <<CONF
+port = '$STANDBY_PORT'
 listen_addresses = 'localhost'
 unix_socket_directories = '/tmp'
-restore_command = 'cp ${HOME}/archive/%f %p'
+restore_command = 'cp $ARCHIVE_DIR/%f %p'
 recovery_target_timeline = 'latest'
 recovery_target_action = 'promote'
 CONF
 
-touch "${HOME}/failover_pgdata/recovery.signal"
-pg_ctl -D "${HOME}/failover_pgdata" -l "${HOME}/failover_pgdata/startup.log" start
+touch "$FAILOVER_PGDATA/recovery.signal"
+pg_ctl -D "$FAILOVER_PGDATA" -l "$FAILOVER_PGDATA/startup.log" start
 sleep 5
-pg_isready -p "9099"
-psql -v ON_ERROR_STOP=1 -p "9099" -d "bigbluecity" -c "SELECT current_setting('port') AS port, pg_is_in_recovery() AS in_recovery, count(*) AS sales_rows FROM sales;"
+pg_isready -p "$STANDBY_PORT"
+psql -v ON_ERROR_STOP=1 -p "$STANDBY_PORT" -d "$DB_NAME" -c "SELECT current_setting('port') AS port, pg_is_in_recovery() AS in_recovery, count(*) AS sales_rows FROM sales;"

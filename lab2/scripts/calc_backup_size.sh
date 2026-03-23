@@ -1,18 +1,18 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export BACKUP_BASE_DIR="$HOME/backup/base"
+export NEW_MB_PER_DAY=200
+export CHANGED_MB_PER_DAY=650
+export MONTH_DAYS=30
 
-if [ -d "${HOME}/backup/base" ]; then
-  BASE_MB="$(du -sm "${HOME}/backup/base" | awk '{print $1}')"
+if [ -d "$BACKUP_BASE_DIR" ]; then
+  BASE_MB="$(du -sm "$BACKUP_BASE_DIR" | awk '{print $1}')"
 else
   BASE_MB="0"
 fi
 
-NEW_MB_PER_DAY=200
-CHANGED_MB_PER_DAY=650
 WAL_MB_PER_DAY=$((NEW_MB_PER_DAY + CHANGED_MB_PER_DAY))
-MONTH_DAYS=30
 MONTH_WAL_MB=$((WAL_MB_PER_DAY * MONTH_DAYS))
 MONTH_TOTAL_MB=$((BASE_MB + MONTH_WAL_MB))
 
