@@ -31,7 +31,7 @@ mkdir -p "$ARCHIVE_DIR" "$BACKUP_BASE_DIR" "$BACKUP_TS1_DIR" "$BACKUP_TS2_DIR"
 chmod 700 "$ARCHIVE_DIR" "$BACKUP_DIR" "$BACKUP_BASE_DIR" "$BACKUP_DIR/tblspc" "$BACKUP_TS1_DIR" "$BACKUP_TS2_DIR"
 
 echo "[1.5/6] prepare standby directories"
-ssh "$STANDBY_USER@$STANDBY_HOST" "rm -rf '$STANDBY_ARCHIVE_DIR' '$STANDBY_BACKUP_DIR' /var/db/postgres2/failover_pgdata /var/db/postgres2/stage4_pgdata /var/db/postgres2/sbm10 /var/db/postgres2/nym69 && mkdir -p '$STANDBY_ARCHIVE_DIR' '$STANDBY_BACKUP_DIR' /var/db/postgres2/transfer /var/db/postgres2/failover_pgdata && chmod 700 '$STANDBY_ARCHIVE_DIR' /var/db/postgres2/transfer /var/db/postgres2/failover_pgdata"
+ssh "$STANDBY_USER@$STANDBY_HOST" "pg_ctl -D /var/db/postgres2/failover_pgdata stop -m fast >/dev/null 2>&1 || true; pg_ctl -D /var/db/postgres2/stage4_pgdata stop -m fast >/dev/null 2>&1 || true; rm -rf '$STANDBY_ARCHIVE_DIR' '$STANDBY_BACKUP_DIR' /var/db/postgres2/failover_pgdata /var/db/postgres2/stage4_pgdata /var/db/postgres2/sbm10 /var/db/postgres2/nym69 && mkdir -p '$STANDBY_ARCHIVE_DIR' '$STANDBY_BACKUP_DIR' /var/db/postgres2/transfer /var/db/postgres2/failover_pgdata && chmod 700 '$STANDBY_ARCHIVE_DIR' /var/db/postgres2/transfer /var/db/postgres2/failover_pgdata"
 
 echo "[2/6] enable WAL archiving to standby"
 ARCHIVE_COMMAND="test ! -f $ARCHIVE_DIR/%f && cp %p $ARCHIVE_DIR/%f && scp -q $ARCHIVE_DIR/%f $STANDBY_USER@$STANDBY_HOST:$STANDBY_ARCHIVE_DIR/%f"
