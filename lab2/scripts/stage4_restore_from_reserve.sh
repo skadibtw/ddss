@@ -34,5 +34,5 @@ pg_dump -h localhost -p "9191" -d "bigbluecity" -Fc -t public.products -f "${DUM
 echo
 echo "Dump created: ${DUMP_FILE}"
 echo "Next on primary:"
-echo "  scp '${DUMP_FILE}' 'postgres0@pg125:${DUMP_FILE}'"
+echo "  scp '${DUMP_FILE}' 'postgres0@pg125:/var/db/postgres0/transfer/products_before_delete.dump'"
 echo "  pg_restore --clean --if-exists --no-owner --no-privileges -h localhost -p '9099' -d 'bigbluecity' -t public.products '${DUMP_FILE}'"

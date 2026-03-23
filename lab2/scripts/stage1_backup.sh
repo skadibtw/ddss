@@ -12,7 +12,7 @@ mkdir -p "${HOME}/archive" "${HOME}/backup/base" "${HOME}/backup/tblspc/sbm10" "
 chmod 700 "${HOME}/archive" "${HOME}/backup" "${HOME}/backup/base" "${HOME}/backup/tblspc" "${HOME}/backup/tblspc/sbm10" "${HOME}/backup/tblspc/nym69"
 
 echo "[2/6] enable WAL archiving to standby"
-ARCHIVE_COMMAND="test ! -f ${HOME}/archive/%f && cp %p ${HOME}/archive/%f && scp -q ${HOME}/archive/%f postgres2@pg132:${HOME}/archive/%f"
+ARCHIVE_COMMAND="test ! -f ${HOME}/archive/%f && cp %p ${HOME}/archive/%f && scp -q ${HOME}/archive/%f postgres2@pg132:/var/db/postgres2/archive/%f"
 
 psql -v ON_ERROR_STOP=1 -p "9099" -d postgres <<SQL
 ALTER SYSTEM SET wal_level = 'replica';
@@ -37,8 +37,8 @@ echo "[5/6] force WAL switch so archive is visible on standby"
 psql -v ON_ERROR_STOP=1 -p "9099" -d postgres -c 'SELECT pg_switch_wal();'
 
 echo "[6/6] copy base backup to standby"
-rsync -aH --delete "${HOME}/backup/" "postgres2@pg132:${HOME}/backup/"
+rsync -aH --delete "${HOME}/backup/" "postgres2@pg132:/var/db/postgres2/backup/"
 
 echo
-echo "Done. Reserve copy is ready in postgres2@pg132:${HOME}/backup"
+echo "Done. Reserve copy is ready in postgres2@pg132:/var/db/postgres2/backup"
 echo "Before failover/PITR, create ${HOME}/archive, ${HOME}/failover_pgdata and ${HOME}/transfer on standby."

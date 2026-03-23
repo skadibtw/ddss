@@ -76,7 +76,7 @@ psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity -f scripts/stage4_prepare.sql
 ```bash
 cd /Users/skadibtw/ddss/lab2
 TARGET_TIME='YYYY-MM-DD HH24:MI:SS.US+TZ' bash scripts/stage4_restore_from_reserve.sh
-scp ${HOME}/transfer/products_before_delete.dump postgres0@pg125:${HOME}/transfer/products_before_delete.dump
+scp ${HOME}/transfer/products_before_delete.dump postgres0@pg125:/var/db/postgres0/transfer/products_before_delete.dump
 ```
 
 На `primary`:

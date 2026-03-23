@@ -134,7 +134,7 @@ bash scripts/stage1_backup.sh
 ALTER SYSTEM SET wal_level = 'replica';
 ALTER SYSTEM SET archive_mode = 'on';
 ALTER SYSTEM SET archive_timeout = '300';
-ALTER SYSTEM SET archive_command = 'test ! -f ${HOME}/archive/%f && cp %p ${HOME}/archive/%f && scp -q ${HOME}/archive/%f postgres2@pg132:${HOME}/archive/%f';
+ALTER SYSTEM SET archive_command = 'test ! -f ${HOME}/archive/%f && cp %p ${HOME}/archive/%f && scp -q ${HOME}/archive/%f postgres2@pg132:/var/db/postgres2/archive/%f';
 ```
 
 3. Перезапуск кластера на основном узле для применения `archive_mode`.
@@ -167,7 +167,7 @@ psql -v ON_ERROR_STOP=1 -p "9099" -d postgres <<SQL
 ALTER SYSTEM SET wal_level = 'replica';
 ALTER SYSTEM SET archive_mode = 'on';
 ALTER SYSTEM SET archive_timeout = '300';
-ALTER SYSTEM SET archive_command = 'test ! -f ${HOME}/archive/%f && cp %p ${HOME}/archive/%f && scp -q ${HOME}/archive/%f postgres2@pg132:${HOME}/archive/%f';
+ALTER SYSTEM SET archive_command = 'test ! -f ${HOME}/archive/%f && cp %p ${HOME}/archive/%f && scp -q ${HOME}/archive/%f postgres2@pg132:/var/db/postgres2/archive/%f';
 SQL
 
 pg_ctl -D "${HOME}/nwc36" restart -m fast
@@ -509,7 +509,7 @@ WHERE id IN (
 ```bash
 cd /Users/skadibtw/ddss/lab2
 TARGET_TIME='2026-03-21 18:42:11.512345+03' bash scripts/stage4_restore_from_reserve.sh
-scp ${HOME}/transfer/products_before_delete.dump postgres0@pg125:${HOME}/transfer/products_before_delete.dump
+scp ${HOME}/transfer/products_before_delete.dump postgres0@pg125:/var/db/postgres0/transfer/products_before_delete.dump
 ```
 
 Сценарий делает следующее:
