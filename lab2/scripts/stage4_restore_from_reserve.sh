@@ -14,8 +14,30 @@ DUMP_FILE="${HOME}/transfer/products_before_delete.dump"
 
 pg_ctl -D "${HOME}/stage4_pgdata" stop -m fast >/dev/null 2>&1 || true
 rm -rf "${HOME}/stage4_pgdata"
-mkdir -p "${HOME}/stage4_pgdata" "${HOME}/transfer"
+rm -rf "${HOME}/stage4_ts1" "${HOME}/stage4_ts2"
+mkdir -p "${HOME}/stage4_pgdata" "${HOME}/stage4_ts1" "${HOME}/stage4_ts2" "${HOME}/transfer"
+chmod 700 "${HOME}/stage4_pgdata" "${HOME}/stage4_ts1" "${HOME}/stage4_ts2" "${HOME}/transfer"
 rsync -aH --delete "${HOME}/backup/base/" "${HOME}/stage4_pgdata/"
+rsync -aH --delete "${HOME}/backup/tblspc/sbm10/" "${HOME}/stage4_ts1/"
+rsync -aH --delete "${HOME}/backup/tblspc/nym69/" "${HOME}/stage4_ts2/"
+
+bash -s <<EOF
+set -euo pipefail
+declare -A TS_MAP
+for link in '${HOME}/stage4_pgdata'/pg_tblspc/*; do
+  [ -L "\${link}" ] || continue
+  oid="\$(basename "\${link}")"
+  target="\$(readlink "\${link}")"
+  case "\${target}" in
+    *sbm10*) TS_MAP["\${oid}"]='${HOME}/stage4_ts1' ;;
+    *nym69*) TS_MAP["\${oid}"]='${HOME}/stage4_ts2' ;;
+  esac
+done
+rm -f '${HOME}/stage4_pgdata'/pg_tblspc/*
+for oid in "\${!TS_MAP[@]}"; do
+  ln -s "\${TS_MAP[\${oid}]}" '${HOME}/stage4_pgdata'/pg_tblspc/"\${oid}"
+done
+EOF
 
 cat >> "${HOME}/stage4_pgdata/postgresql.auto.conf" <<CONF
 port = '9191'

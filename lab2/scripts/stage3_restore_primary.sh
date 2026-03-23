@@ -15,6 +15,7 @@ pg_ctl -D "${HOME}/nwc36" stop -m immediate >/dev/null 2>&1 || true
 echo "[2/5] prepare new locations"
 rm -rf "${HOME}/nwc36_restore" "${HOME}/restore_ts1" "${HOME}/restore_ts2"
 mkdir -p "${HOME}/nwc36_restore" "${HOME}/restore_ts1" "${HOME}/restore_ts2"
+chmod 700 "${HOME}/nwc36_restore" "${HOME}/restore_ts1" "${HOME}/restore_ts2"
 
 echo "[3/5] restore base backup into new PGDATA"
 rsync -aH --delete "${HOME}/backup/base/" "${HOME}/nwc36_restore/"

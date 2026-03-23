@@ -7,8 +7,30 @@ echo "Run this stage on standby: postgres2@pg132"
 
 pg_ctl -D "${HOME}/failover_pgdata" stop -m fast >/dev/null 2>&1 || true
 rm -rf "${HOME}/failover_pgdata"
-mkdir -p "${HOME}/failover_pgdata"
+rm -rf "${HOME}/failover_ts1" "${HOME}/failover_ts2"
+mkdir -p "${HOME}/failover_pgdata" "${HOME}/failover_ts1" "${HOME}/failover_ts2"
+chmod 700 "${HOME}/failover_pgdata" "${HOME}/failover_ts1" "${HOME}/failover_ts2"
 rsync -aH --delete "${HOME}/backup/base/" "${HOME}/failover_pgdata/"
+rsync -aH --delete "${HOME}/backup/tblspc/sbm10/" "${HOME}/failover_ts1/"
+rsync -aH --delete "${HOME}/backup/tblspc/nym69/" "${HOME}/failover_ts2/"
+
+bash -s <<EOF
+set -euo pipefail
+declare -A TS_MAP
+for link in '${HOME}/failover_pgdata'/pg_tblspc/*; do
+  [ -L "\${link}" ] || continue
+  oid="\$(basename "\${link}")"
+  target="\$(readlink "\${link}")"
+  case "\${target}" in
+    *sbm10*) TS_MAP["\${oid}"]='${HOME}/failover_ts1' ;;
+    *nym69*) TS_MAP["\${oid}"]='${HOME}/failover_ts2' ;;
+  esac
+done
+rm -f '${HOME}/failover_pgdata'/pg_tblspc/*
+for oid in "\${!TS_MAP[@]}"; do
+  ln -s "\${TS_MAP[\${oid}]}" '${HOME}/failover_pgdata'/pg_tblspc/"\${oid}"
+done
+EOF
 
 cat >> "${HOME}/failover_pgdata/postgresql.auto.conf" <<CONF
 port = '9099'
