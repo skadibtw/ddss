@@ -14,6 +14,7 @@ ssh -J s413099@helios.cs.ifmo.ru:2222 postgres2@pg132
 
 Для `stage2` и `stage4` скрипт восстанавливает tablespaces в `${HOME}/sbm10` и `${HOME}/nym69` и перепривязывает `pg_tblspc`.
 Для TCP-проверок и `pg_dump` используется `dbuser` / `secure_password_123` из первой лабы.
+Перед повторным `stage1` остановите `${HOME}/nwc36_restore`, если он запущен на `9099`.
 
 ## 2. Этап 1: backup
 

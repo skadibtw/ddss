@@ -14,10 +14,16 @@ export STANDBY_USER=postgres2
 export STANDBY_HOST=pg132
 export STANDBY_ARCHIVE_DIR=/var/db/postgres2/archive
 export STANDBY_BACKUP_DIR=/var/db/postgres2/backup
+export PRIMARY_RESTORE_PGDATA="$HOME/nwc36_restore"
 
 for cmd in psql pg_ctl pg_basebackup rsync scp ssh; do
   command -v "${cmd}" >/dev/null
 done
+
+if pg_ctl -D "$PRIMARY_RESTORE_PGDATA" status >/dev/null 2>&1; then
+  echo "Stop $PRIMARY_RESTORE_PGDATA first: port $PRIMARY_PORT is occupied by restored cluster"
+  exit 1
+fi
 
 echo "[1/6] prepare local backup directories"
 mkdir -p "$ARCHIVE_DIR" "$BACKUP_BASE_DIR" "$BACKUP_TS1_DIR" "$BACKUP_TS2_DIR"
