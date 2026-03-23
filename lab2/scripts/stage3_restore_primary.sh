@@ -21,6 +21,7 @@ for cmd in pg_ctl pg_isready psql rsync; do
 done
 
 echo "[1/5] stop broken primary cluster"
+pg_ctl -D "$PRIMARY_RESTORE_PGDATA" stop -m fast >/dev/null 2>&1 || true
 pg_ctl -D "$PRIMARY_PGDATA" stop -m immediate >/dev/null 2>&1 || true
 
 echo "[2/5] prepare new locations"

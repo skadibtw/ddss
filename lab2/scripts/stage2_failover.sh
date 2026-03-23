@@ -17,11 +17,11 @@ echo "Run this stage on standby: postgres2@pg132"
 
 pg_ctl -D "$FAILOVER_PGDATA" stop -m fast >/dev/null 2>&1 || true
 rm -rf "$FAILOVER_PGDATA" "$STANDBY_TS1" "$STANDBY_TS2"
-mkdir -p "$FAILOVER_PGDATA" "$STANDBY_TS1" "$STANDBY_TS2"
+mkdir -p "$ARCHIVE_DIR" "$FAILOVER_PGDATA" "$STANDBY_TS1" "$STANDBY_TS2"
 rsync -aH --delete "$BACKUP_BASE_DIR/" "$FAILOVER_PGDATA/"
 rsync -aH --delete "$BACKUP_TS1_DIR/" "$STANDBY_TS1/"
 rsync -aH --delete "$BACKUP_TS2_DIR/" "$STANDBY_TS2/"
-chmod 700 "$FAILOVER_PGDATA"
+chmod 700 "$ARCHIVE_DIR" "$FAILOVER_PGDATA"
 
 bash -s <<EOF
 set -euo pipefail
