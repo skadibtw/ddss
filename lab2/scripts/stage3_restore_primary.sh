@@ -3,6 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+echo "Run this stage on primary: postgres0@pg125"
+
 for cmd in pg_ctl pg_isready psql rsync; do
   command -v "${cmd}" >/dev/null
 done
@@ -52,8 +54,8 @@ EOF
 echo "[5/5] start restored primary and verify"
 pg_ctl -D "${HOME}/nwc36_restore" -l "${HOME}/nwc36_restore/startup.log" start
 sleep 5
-pg_isready -h localhost -p "9099"
-psql -v ON_ERROR_STOP=1 -h localhost -p "9099" -d "bigbluecity" -c "SELECT pg_is_in_recovery() AS in_recovery, count(*) AS sales_rows FROM sales;"
+pg_isready -p "9099"
+psql -v ON_ERROR_STOP=1 -p "9099" -d "bigbluecity" -c "SELECT pg_is_in_recovery() AS in_recovery, count(*) AS sales_rows FROM sales;"
 
 echo
 echo "Primary is restored in ${HOME}/nwc36_restore"

@@ -3,6 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+echo "Run this stage on standby: postgres2@pg132"
+
 pg_ctl -D "${HOME}/failover_pgdata" stop -m fast >/dev/null 2>&1 || true
 rm -rf "${HOME}/failover_pgdata"
 mkdir -p "${HOME}/failover_pgdata"
@@ -20,5 +22,5 @@ CONF
 touch "${HOME}/failover_pgdata/recovery.signal"
 pg_ctl -D "${HOME}/failover_pgdata" -l "${HOME}/failover_pgdata/startup.log" start
 sleep 5
-pg_isready -h localhost -p "9099"
-psql -v ON_ERROR_STOP=1 -h localhost -p "9099" -d "bigbluecity" -c "SELECT current_setting('port') AS port, pg_is_in_recovery() AS in_recovery, count(*) AS sales_rows FROM sales;"
+pg_isready -p "9099"
+psql -v ON_ERROR_STOP=1 -p "9099" -d "bigbluecity" -c "SELECT current_setting('port') AS port, pg_is_in_recovery() AS in_recovery, count(*) AS sales_rows FROM sales;"

@@ -3,6 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+echo "Run this stage on standby: postgres2@pg132"
+
 if [ -z "${TARGET_TIME:-}" ]; then
   echo "Set TARGET_TIME to timestamp printed by stage4_prepare.sql"
   exit 1
@@ -28,11 +30,11 @@ CONF
 touch "${HOME}/stage4_pgdata/recovery.signal"
 pg_ctl -D "${HOME}/stage4_pgdata" -l "${HOME}/stage4_pgdata/startup.log" start
 sleep 5
-psql -v ON_ERROR_STOP=1 -h localhost -p "9191" -d "bigbluecity" -c 'TABLE products;'
-pg_dump -h localhost -p "9191" -d "bigbluecity" -Fc -t public.products -f "${DUMP_FILE}"
+psql -v ON_ERROR_STOP=1 -p "9191" -d "bigbluecity" -c 'TABLE products;'
+pg_dump -p "9191" -d "bigbluecity" -Fc -t public.products -f "${DUMP_FILE}"
 
 echo
 echo "Dump created: ${DUMP_FILE}"
 echo "Next on primary:"
 echo "  scp '${DUMP_FILE}' 'postgres0@pg125:/var/db/postgres0/transfer/products_before_delete.dump'"
-echo "  pg_restore --clean --if-exists --no-owner --no-privileges -h localhost -p '9099' -d 'bigbluecity' -t public.products '${DUMP_FILE}'"
+echo "  pg_restore --clean --if-exists --no-owner --no-privileges -p '9099' -d 'bigbluecity' -t public.products '${DUMP_FILE}'"
