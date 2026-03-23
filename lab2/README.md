@@ -1,6 +1,6 @@
 # Лаба 2: резервное копирование и восстановление PostgreSQL
 
-Материалы рассчитаны на кластер из `lab1`:
+Материалы рассчитаны на кластер из `lab1` и упрощены под ручной запуск: вы сами подключаетесь по `ssh` на нужный узел и запускаете команды локально на нем.
 
 - основной узел: `PGDATA=$HOME/nwc36`, порт `9099`
 - БД: `bigbluecity`
@@ -8,13 +8,13 @@
 
 ## Файлы
 
-- `scripts/env.sh.example` - шаблон переменных окружения для обоих узлов.
-- `scripts/stage1_backup.sh` - включает архивирование WAL, готовит `pg_basebackup`, копирует резервную копию на резервный узел.
+- `scripts/env.sh.example` - шаблон переменных окружения.
+- `scripts/stage1_backup.sh` - запускается на основном узле: включает архивирование WAL, готовит `pg_basebackup`, копирует резервную копию на резервный узел.
 - `scripts/calc_backup_size.sh` - оценивает месячный объём хранения резервных копий.
-- `scripts/stage2_failover.sh` - поднимает СУБД на резервном узле из базовой копии и архива WAL.
-- `scripts/stage3_restore_primary.sh` - полностью восстанавливает основной узел в новом `PGDATA`.
+- `scripts/stage2_failover.sh` - запускается на резервном узле: поднимает СУБД из базовой копии и архива WAL.
+- `scripts/stage3_restore_primary.sh` - запускается на основном узле: полностью восстанавливает основной узел в новом `PGDATA`.
 - `scripts/stage4_prepare.sql` - добавляет строки и симулирует логическую ошибку.
-- `scripts/stage4_restore_from_reserve.sh` - восстанавливает таблицу `products` через `pg_dump` с резервного узла.
+- `scripts/stage4_restore_from_reserve.sh` - запускается на резервном узле: делает PITR и готовит дамп `products` для ручного переноса на основной узел.
 - `REPORT.md` - готовый каркас отчёта с командами, расчётами и ответами на вопросы.
 
 ## Подготовка
@@ -22,24 +22,31 @@
 1. Файл `scripts/env.sh` уже заполнен под ваши узлы:
 
 ```bash
-PRIMARY:  postgres0@pg125
-STANDBY:  postgres2@pg132
-JUMP:     s413099@helios.cs.ifmo.ru:2222
+PRIMARY: postgres0@pg125
+STANDBY: postgres2@pg132
 ```
 
 2. При необходимости скорректируйте `scripts/env.sh`.
 
 3. Настройте вход по SSH-ключу с основного узла на резервный, иначе `scp` в `archive_command` не сработает. Пароли в скрипты не вшиваются.
+4. На резервном узле заранее создайте служебные каталоги:
+
+```bash
+mkdir -p /tmp/ddss_lab2_archive /tmp/ddss_lab2_failover_pgdata /tmp/ddss_lab2_transfer
+chmod 700 /tmp/ddss_lab2_archive /tmp/ddss_lab2_failover_pgdata /tmp/ddss_lab2_transfer
+```
 
 ## Порядок запуска
 
 ```bash
-bash scripts/stage1_backup.sh
-bash scripts/calc_backup_size.sh
-bash scripts/stage2_failover.sh
-bash scripts/stage3_restore_primary.sh
-psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity -f scripts/stage4_prepare.sql
-TARGET_TIME='YYYY-MM-DD HH24:MI:SS.US+TZ' bash scripts/stage4_restore_from_reserve.sh
+[primary] bash scripts/stage1_backup.sh
+[primary] bash scripts/calc_backup_size.sh
+[standby] bash scripts/stage2_failover.sh
+[primary] bash scripts/stage3_restore_primary.sh
+[primary] psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity -f scripts/stage4_prepare.sql
+[standby] TARGET_TIME='YYYY-MM-DD HH24:MI:SS.US+TZ' bash scripts/stage4_restore_from_reserve.sh
+[standby->primary] scp /tmp/ddss_lab2_transfer/products_before_delete.dump postgres0@pg125:/tmp/ddss_lab2_transfer/products_before_delete.dump
+[primary] pg_restore --clean --if-exists --no-owner --no-privileges -h localhost -p 9099 -d bigbluecity -t public.products /tmp/ddss_lab2_transfer/products_before_delete.dump
 ```
 
 `TARGET_TIME` для этапа 4 берётся из вывода `stage4_prepare.sql`: это момент перед `DELETE`.

@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -d "${BACKUP_ROOT}/base" ]; then
   BASE_MB="$(du -sm "${BACKUP_ROOT}/base" | awk '{print $1}')"
 else
-  BASE_MB="$(ssh "${SSH_OPTS[@]}" "${PRIMARY_SSH}" "if [ -d '${BACKUP_ROOT}/base' ]; then du -sm '${BACKUP_ROOT}/base' | awk '{print \\\$1}'; else printf 0; fi")"
+  BASE_MB="0"
 fi
 
 NEW_MB_PER_DAY=200

@@ -11,15 +11,12 @@ fi
 
 DUMP_FILE="${TRANSFER_DIR}/products_before_delete.dump"
 
-ssh "${SSH_OPTS[@]}" "${STANDBY_SSH}" "bash -s" <<EOF
-set -euo pipefail
+pg_ctl -D "${RESERVE_STAGE4_PGDATA}" stop -m fast >/dev/null 2>&1 || true
+rm -rf "${RESERVE_STAGE4_PGDATA}"
+mkdir -p "${RESERVE_STAGE4_PGDATA}" "${TRANSFER_DIR}"
+rsync -aH --delete "${BACKUP_ROOT}/base/" "${RESERVE_STAGE4_PGDATA}/"
 
-pg_ctl -D '${RESERVE_STAGE4_PGDATA}' stop -m fast >/dev/null 2>&1 || true
-rm -rf '${RESERVE_STAGE4_PGDATA}'
-mkdir -p '${RESERVE_STAGE4_PGDATA}' '${TRANSFER_DIR}'
-rsync -aH --delete '${BACKUP_ROOT}/base/' '${RESERVE_STAGE4_PGDATA}/'
-
-cat >> '${RESERVE_STAGE4_PGDATA}/postgresql.auto.conf' <<CONF
+cat >> "${RESERVE_STAGE4_PGDATA}/postgresql.auto.conf" <<CONF
 port = '${STANDBY_PITR_PORT}'
 listen_addresses = 'localhost'
 unix_socket_directories = '/tmp'
@@ -29,15 +26,14 @@ recovery_target_inclusive = 'true'
 recovery_target_action = 'promote'
 CONF
 
-touch '${RESERVE_STAGE4_PGDATA}/recovery.signal'
-pg_ctl -D '${RESERVE_STAGE4_PGDATA}' -l '${RESERVE_STAGE4_PGDATA}/startup.log' start
+touch "${RESERVE_STAGE4_PGDATA}/recovery.signal"
+pg_ctl -D "${RESERVE_STAGE4_PGDATA}" -l "${RESERVE_STAGE4_PGDATA}/startup.log" start
 sleep 5
-psql -v ON_ERROR_STOP=1 -h localhost -p '${STANDBY_PITR_PORT}' -d '${PRIMARY_DB}' -c 'TABLE products;'
-pg_dump -h localhost -p '${STANDBY_PITR_PORT}' -d '${PRIMARY_DB}' -Fc -t public.products -f '${DUMP_FILE}'
-EOF
+psql -v ON_ERROR_STOP=1 -h localhost -p "${STANDBY_PITR_PORT}" -d "${PRIMARY_DB}" -c 'TABLE products;'
+pg_dump -h localhost -p "${STANDBY_PITR_PORT}" -d "${PRIMARY_DB}" -Fc -t public.products -f "${DUMP_FILE}"
 
-mkdir -p "${TRANSFER_DIR}"
-scp "${SSH_OPTS[@]}" "${STANDBY_SSH}:${DUMP_FILE}" "${TRANSFER_DIR}/products_before_delete.dump"
-scp "${SSH_OPTS[@]}" "${TRANSFER_DIR}/products_before_delete.dump" "${PRIMARY_SSH}:${DUMP_FILE}"
-
-ssh "${SSH_OPTS[@]}" "${PRIMARY_SSH}" "pg_restore --clean --if-exists --no-owner --no-privileges -h localhost -p '${PRIMARY_PORT}' -d '${PRIMARY_DB}' -t public.products '${DUMP_FILE}' && psql -v ON_ERROR_STOP=1 -h localhost -p '${PRIMARY_PORT}' -d '${PRIMARY_DB}' -c 'TABLE products;'"
+echo
+echo "Dump created: ${DUMP_FILE}"
+echo "Next on primary:"
+echo "  scp '${DUMP_FILE}' '${PRIMARY_USER}@${PRIMARY_HOST}:${DUMP_FILE}'"
+echo "  pg_restore --clean --if-exists --no-owner --no-privileges -h localhost -p '${PRIMARY_PORT}' -d '${PRIMARY_DB}' -t public.products '${DUMP_FILE}'"

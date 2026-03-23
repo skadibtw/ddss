@@ -99,7 +99,9 @@ ssh -J s413099@helios.cs.ifmo.ru:2222 postgres2@pg132
   - `$HOME/sbm10`;
   - `$HOME/nym69`.
 
-Для автоматизации были подготовлены файлы:
+Для упрощения запуска были подготовлены локальные сценарии: подключение к нужному узлу выполняется вручную по `ssh`, после чего команды запускаются уже на самом узле.
+
+Используются файлы:
 
 - `lab2/scripts/env.sh`;
 - `lab2/scripts/stage1_backup.sh`;
@@ -118,25 +120,19 @@ ssh -J s413099@helios.cs.ifmo.ru:2222 postgres2@pg132
 Фрагмент конфигурации:
 
 ```bash
-JUMP_SSH="s413099@helios.cs.ifmo.ru"
-JUMP_PORT="2222"
-
 PRIMARY_HOST="pg125"
 PRIMARY_USER="postgres0"
 STANDBY_HOST="pg132"
 STANDBY_USER="postgres2"
 
-PRIMARY_SSH="${PRIMARY_USER}@${PRIMARY_HOST}"
-STANDBY_SSH="${STANDBY_USER}@${STANDBY_HOST}"
-
-PRIMARY_PGDATA='${HOME}/nwc36'
+PRIMARY_PGDATA="${HOME}/nwc36"
 PRIMARY_PORT="9099"
 PRIMARY_DB="bigbluecity"
 ```
 
 Далее на основном узле была настроена архивизация WAL и создана первоначальная полная копия.
 
-Команда запуска сценария:
+Сценарий запускается локально на основном узле:
 
 ```bash
 cd /Users/skadibtw/ddss/lab2
@@ -145,7 +141,7 @@ bash scripts/stage1_backup.sh
 
 Основные действия сценария:
 
-1. Создание каталогов резервного копирования и архива WAL на основном и резервном узлах.
+1. Создание каталогов резервного копирования на основном узле.
 2. Настройка параметров сервера PostgreSQL на основном узле:
 
 ```sql
@@ -177,20 +173,21 @@ SELECT pg_switch_wal();
 
 6. Перенос полной копии на резервный узел через `rsync`.
 
-Пример содержимого сценария `stage1_backup.sh`:
+Ключевой фрагмент сценария `stage1_backup.sh`:
 
 ```bash
-ssh "${SSH_OPTS[@]}" "${PRIMARY_SSH}" "psql -v ON_ERROR_STOP=1 -p '${PRIMARY_PORT}' -d postgres <<'SQL'
+psql -v ON_ERROR_STOP=1 -p "${PRIMARY_PORT}" -d postgres <<SQL
 ALTER SYSTEM SET wal_level = 'replica';
 ALTER SYSTEM SET archive_mode = 'on';
 ALTER SYSTEM SET archive_timeout = '300';
 ALTER SYSTEM SET archive_command = '${ARCHIVE_COMMAND}';
 SQL
-"
 
-ssh "${SSH_OPTS[@]}" "${PRIMARY_SSH}" "pg_ctl -D ${PRIMARY_PGDATA} restart -m fast"
+pg_ctl -D "${PRIMARY_PGDATA}" restart -m fast
 
-ssh "${SSH_OPTS[@]}" "${PRIMARY_SSH}" "pg_basebackup -D '${BACKUP_ROOT}/base' -Fp -X stream -P -c fast --tablespace-mapping='${PRIMARY_TS1}=${BACKUP_ROOT}/tblspc/sbm10' --tablespace-mapping='${PRIMARY_TS2}=${BACKUP_ROOT}/tblspc/nym69'"
+pg_basebackup -D "${BACKUP_ROOT}/base" -Fp -X stream -P -c fast \
+  --tablespace-mapping="${PRIMARY_TS1}=${BACKUP_ROOT}/tblspc/sbm10" \
+  --tablespace-mapping="${PRIMARY_TS2}=${BACKUP_ROOT}/tblspc/nym69"
 ```
 
 Проверка параметров архивирования:
@@ -298,7 +295,7 @@ Vtotal ≈ 1.2 GB + 24.9 GB = 26.1 GB
 
 В этом сценарии предполагается полная недоступность основного узла. Для восстановления используется резервный узел и копия данных, полученная на этапе 1.
 
-Команда запуска сценария:
+Сценарий запускается локально на резервном узле:
 
 ```bash
 cd /Users/skadibtw/ddss/lab2
@@ -394,7 +391,7 @@ ssh -J s413099@helios.cs.ifmo.ru:2222 postgres0@pg125 \
 
 По условию задания исходный каталог `PGDATA` считается недоступным, поэтому восстановление выполняется в новую директорию.
 
-Команда запуска сценария:
+Сценарий запускается локально на основном узле:
 
 ```bash
 cd /Users/skadibtw/ddss/lab2
@@ -524,11 +521,12 @@ WHERE id IN (
 
 Для восстановления используется резервный узел. На нем разворачивается временный кластер из базовой копии, затем выполняется PITR до времени непосредственно перед ошибочным удалением. После этого из полученного состояния выгружается таблица `products` с помощью `pg_dump`, а затем она восстанавливается на основном узле с помощью `pg_restore`.
 
-Команда запуска:
+Сценарий запускается локально на резервном узле:
 
 ```bash
 cd /Users/skadibtw/ddss/lab2
 TARGET_TIME='2026-03-21 18:42:11.512345+03' bash scripts/stage4_restore_from_reserve.sh
+scp /tmp/ddss_lab2_transfer/products_before_delete.dump postgres0@pg125:/tmp/ddss_lab2_transfer/products_before_delete.dump
 ```
 
 Сценарий делает следующее:
@@ -550,8 +548,8 @@ recovery_target_action = 'promote'
 pg_dump -h localhost -p 9191 -d bigbluecity -Fc -t public.products -f /tmp/ddss_lab2_transfer/products_before_delete.dump
 ```
 
-5. Передает полученный дамп на основной узел.
-6. Выполняет на основном узле:
+5. После этого дамп вручную переносится на основной узел.
+6. На основном узле выполняется:
 
 ```bash
 pg_restore --clean --if-exists --no-owner --no-privileges \
