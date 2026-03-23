@@ -19,8 +19,8 @@
 
 ## Подготовка
 
-1. Все команды в скриптах уже прописаны с реальными путями и портами. Вы можете просто выделять нужные команды, копировать их и выполнять в терминале построчно.
-2. При необходимости скорректируйте пути (например, `${HOME}/backup`) или порты (например, `9099`) напрямую в тексте нужного скрипта перед копированием.
+1. В начале каждого скрипта есть короткий блок `export ...` с путями, портами и именами узлов. После него идут обычные команды.
+2. Если нужно, поправьте значения в этом блоке и затем просто копируйте команды ниже построчно.
 
 3. Настройте вход по SSH-ключу с основного узла на резервный, иначе `scp` в `archive_command` не сработает. Пароли в скрипты не вшиваются.
 4. На резервном узле заранее создайте служебные каталоги:
@@ -40,7 +40,7 @@ chmod 700 ${HOME}/archive ${HOME}/failover_pgdata ${HOME}/transfer
 [primary] psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity -f scripts/stage4_prepare.sql
 [standby] TARGET_TIME='YYYY-MM-DD HH24:MI:SS.US+TZ' bash scripts/stage4_restore_from_reserve.sh
 [standby->primary] scp ${HOME}/transfer/products_before_delete.dump postgres0@pg125:/var/db/postgres0/transfer/products_before_delete.dump
-[primary] pg_restore --clean --if-exists --no-owner --no-privileges -h localhost -p 9099 -d bigbluecity -t public.products ${HOME}/transfer/products_before_delete.dump
+[primary] pg_restore --clean --if-exists --no-owner --no-privileges -p 9099 -d bigbluecity -t public.products ${HOME}/transfer/products_before_delete.dump
 ```
 
 `TARGET_TIME` для этапа 4 берётся из вывода `stage4_prepare.sql`: это момент перед `DELETE`.

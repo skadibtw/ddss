@@ -14,6 +14,8 @@ mkdir -p ${HOME}/archive ${HOME}/failover_pgdata ${HOME}/transfer
 chmod 700 ${HOME}/archive ${HOME}/failover_pgdata ${HOME}/transfer
 ```
 
+Во всех `stage*.sh` сначала при необходимости правьте блок `export ...`, потом копируйте команды ниже.
+
 ## 2. Этап 1: backup
 
 На `primary`:
@@ -43,7 +45,7 @@ ls -lah ${HOME}/backup ${HOME}/archive
 ```bash
 cd /Users/skadibtw/ddss/lab2
 bash scripts/stage2_failover.sh
-psql -v ON_ERROR_STOP=1 -h localhost -p 9099 -d bigbluecity -c 'SELECT pg_is_in_recovery(), count(*) FROM sales;'
+psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity -c 'SELECT pg_is_in_recovery(), count(*) FROM sales;'
 ```
 
 ## 4. Этап 3: потеря tablespace и restore primary
@@ -56,7 +58,7 @@ psql -v ON_ERROR_STOP=0 -p 9099 -d bigbluecity -c 'SELECT count(*) FROM products
 pg_ctl -D "$HOME/nwc36" restart -m fast
 cd /Users/skadibtw/ddss/lab2
 bash scripts/stage3_restore_primary.sh
-psql -v ON_ERROR_STOP=1 -h localhost -p 9099 -d bigbluecity -c 'SELECT pg_is_in_recovery(), count(*) FROM sales;'
+psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity -c 'SELECT pg_is_in_recovery(), count(*) FROM sales;'
 psql -p 9099 -d postgres -c 'SELECT spcname, pg_tablespace_location(oid) FROM pg_tablespace ORDER BY spcname;'
 ```
 
@@ -83,6 +85,6 @@ scp ${HOME}/transfer/products_before_delete.dump postgres0@pg125:/var/db/postgre
 
 ```bash
 mkdir -p ${HOME}/transfer
-pg_restore --clean --if-exists --no-owner --no-privileges -h localhost -p 9099 -d bigbluecity -t public.products ${HOME}/transfer/products_before_delete.dump
-psql -v ON_ERROR_STOP=1 -h localhost -p 9099 -d bigbluecity -c 'TABLE products;'
+pg_restore --clean --if-exists --no-owner --no-privileges -p 9099 -d bigbluecity -t public.products ${HOME}/transfer/products_before_delete.dump
+psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity -c 'TABLE products;'
 ```
