@@ -25,12 +25,12 @@ fi
 
 pg_ctl -D "$STAGE4_PGDATA" stop -m fast >/dev/null 2>&1 || true
 rm -rf "$STAGE4_PGDATA"
-mkdir -p "$STAGE4_PGDATA" "$TRANSFER_DIR"
+mkdir -p "$ARCHIVE_DIR" "$STAGE4_PGDATA" "$TRANSFER_DIR"
 rsync -aH --delete "$BACKUP_BASE_DIR/" "$STAGE4_PGDATA/"
 mkdir -p "$STANDBY_TS1" "$STANDBY_TS2"
 rsync -aH --delete "$BACKUP_TS1_DIR/" "$STANDBY_TS1/"
 rsync -aH --delete "$BACKUP_TS2_DIR/" "$STANDBY_TS2/"
-chmod 700 "$STAGE4_PGDATA" "$TRANSFER_DIR"
+chmod 700 "$ARCHIVE_DIR" "$STAGE4_PGDATA" "$TRANSFER_DIR"
 
 bash -s <<EOF
 set -euo pipefail
@@ -86,4 +86,4 @@ echo
 echo "Dump created: ${DUMP_FILE}"
 echo "Next on primary:"
 echo "  scp '${DUMP_FILE}' 'postgres0@pg125:/var/db/postgres0/transfer/products_before_delete.dump'"
-echo "  PGPASSWORD='$DB_PASSWORD' pg_restore --clean --if-exists --no-owner --no-privileges -h localhost -U '$DB_USER' -p '$PRIMARY_PORT' -d '$DB_NAME' -t public.products '${DUMP_FILE}'"
+echo "  PGPASSWORD='$DB_PASSWORD' pg_restore --clean --if-exists --no-owner --no-privileges -h localhost -U '$DB_USER' -p '$PRIMARY_PORT' -d '$DB_NAME' '${DUMP_FILE}'"

@@ -15,13 +15,16 @@ export STANDBY_HOST=pg132
 export STANDBY_ARCHIVE_DIR=/var/db/postgres2/archive
 export STANDBY_BACKUP_DIR=/var/db/postgres2/backup
 
-for cmd in psql pg_ctl pg_basebackup rsync scp; do
+for cmd in psql pg_ctl pg_basebackup rsync scp ssh; do
   command -v "${cmd}" >/dev/null
 done
 
 echo "[1/6] prepare local backup directories"
 mkdir -p "$ARCHIVE_DIR" "$BACKUP_BASE_DIR" "$BACKUP_TS1_DIR" "$BACKUP_TS2_DIR"
 chmod 700 "$ARCHIVE_DIR" "$BACKUP_DIR" "$BACKUP_BASE_DIR" "$BACKUP_DIR/tblspc" "$BACKUP_TS1_DIR" "$BACKUP_TS2_DIR"
+
+echo "[1.5/6] prepare standby directories"
+ssh "$STANDBY_USER@$STANDBY_HOST" "mkdir -p '$STANDBY_ARCHIVE_DIR' '$STANDBY_BACKUP_DIR' /var/db/postgres2/transfer /var/db/postgres2/failover_pgdata && chmod 700 '$STANDBY_ARCHIVE_DIR' /var/db/postgres2/transfer /var/db/postgres2/failover_pgdata"
 
 echo "[2/6] enable WAL archiving to standby"
 ARCHIVE_COMMAND="test ! -f $ARCHIVE_DIR/%f && cp %p $ARCHIVE_DIR/%f && scp -q $ARCHIVE_DIR/%f $STANDBY_USER@$STANDBY_HOST:$STANDBY_ARCHIVE_DIR/%f"
@@ -53,4 +56,4 @@ rsync -aH --delete "$BACKUP_DIR/" "$STANDBY_USER@$STANDBY_HOST:$STANDBY_BACKUP_D
 
 echo
 echo "Done. Reserve copy is ready in $STANDBY_USER@$STANDBY_HOST:$STANDBY_BACKUP_DIR"
-echo "Before failover/PITR, create $HOME/archive, $HOME/failover_pgdata and $HOME/transfer on standby."
+echo "Standby directories are prepared automatically."

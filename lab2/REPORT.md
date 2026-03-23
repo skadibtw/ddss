@@ -158,7 +158,8 @@ pg_basebackup \
 SELECT pg_switch_wal();
 ```
 
-6. Перенос полной копии на резервный узел через `rsync`.
+6. Предварительное создание служебных каталогов на резервном узле по `ssh`.
+7. Перенос полной копии на резервный узел через `rsync`.
 
 Ключевой фрагмент сценария `stage1_backup.sh`:
 
@@ -171,6 +172,8 @@ export ARCHIVE_DIR="$HOME/archive"
 export BACKUP_DIR="$HOME/backup"
 export STANDBY_USER=postgres2
 export STANDBY_HOST=pg132
+
+ssh "$STANDBY_USER@$STANDBY_HOST" "mkdir -p /var/db/postgres2/archive /var/db/postgres2/backup /var/db/postgres2/transfer /var/db/postgres2/failover_pgdata && chmod 700 /var/db/postgres2/archive /var/db/postgres2/transfer /var/db/postgres2/failover_pgdata"
 
 psql -v ON_ERROR_STOP=1 -p "9099" -d postgres <<SQL
 ALTER SYSTEM SET wal_level = 'replica';
@@ -559,7 +562,7 @@ PGPASSWORD='secure_password_123' pg_dump -h localhost -U dbuser -p 9191 -d bigbl
 ```bash
 mkdir -p ${HOME}/transfer
 PGPASSWORD='secure_password_123' pg_restore --clean --if-exists --no-owner --no-privileges \
-  -h localhost -U dbuser -p 9099 -d bigbluecity -t public.products \
+  -h localhost -U dbuser -p 9099 -d bigbluecity \
   ${HOME}/transfer/products_before_delete.dump
 ```
 

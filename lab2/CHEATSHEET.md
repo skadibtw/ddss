@@ -7,14 +7,10 @@ ssh -J s413099@helios.cs.ifmo.ru:2222 postgres0@pg125
 ssh -J s413099@helios.cs.ifmo.ru:2222 postgres2@pg132
 ```
 
-## 1. Один раз на standby
-
-```bash
-mkdir -p ${HOME}/archive ${HOME}/failover_pgdata ${HOME}/transfer
-chmod 700 ${HOME}/archive ${HOME}/failover_pgdata ${HOME}/transfer
-```
+## 1. Подготовка
 
 Во всех `stage*.sh` сначала при необходимости правьте блок `export ...`, потом копируйте команды ниже.
+`stage1_backup.sh` сам создаёт нужные каталоги на standby.
 
 Для `stage2` и `stage4` скрипт восстанавливает tablespaces в `${HOME}/sbm10` и `${HOME}/nym69` и перепривязывает `pg_tblspc`.
 Для TCP-проверок и `pg_dump` используется `dbuser` / `secure_password_123` из первой лабы.
@@ -90,6 +86,6 @@ scp ${HOME}/transfer/products_before_delete.dump postgres0@pg125:/var/db/postgre
 
 ```bash
 mkdir -p ${HOME}/transfer
-PGPASSWORD='secure_password_123' pg_restore --clean --if-exists --no-owner --no-privileges -h localhost -U dbuser -p 9099 -d bigbluecity -t public.products ${HOME}/transfer/products_before_delete.dump
+PGPASSWORD='secure_password_123' pg_restore --clean --if-exists --no-owner --no-privileges -h localhost -U dbuser -p 9099 -d bigbluecity ${HOME}/transfer/products_before_delete.dump
 PGPASSWORD='secure_password_123' psql -v ON_ERROR_STOP=1 -h localhost -U dbuser -p 9099 -d bigbluecity -c 'TABLE products;'
 ```

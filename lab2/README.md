@@ -24,14 +24,8 @@
 
 3. Настройте вход по SSH-ключу с основного узла на резервный, иначе `scp` в `archive_command` не сработает.
 4. Для TCP-проверок и `pg_dump` используется роль `dbuser` из `lab1` с паролем `secure_password_123`.
-5. На резервном узле заранее создайте служебные каталоги:
-
-```bash
-mkdir -p ${HOME}/archive ${HOME}/failover_pgdata ${HOME}/transfer
-chmod 700 ${HOME}/archive ${HOME}/failover_pgdata ${HOME}/transfer
-```
-
-На резервном узле этапы 2 и 4 восстанавливают данные табличных пространств из `${HOME}/backup/tblspc/...` в `${HOME}/sbm10` и `${HOME}/nym69` и перепривязывают `pg_tblspc` к этим путям.
+5. `stage1_backup.sh` сам создает на резервном узле каталоги `${HOME}/archive`, `${HOME}/backup`, `${HOME}/transfer`, `${HOME}/failover_pgdata`.
+6. На резервном узле этапы 2 и 4 восстанавливают данные табличных пространств из `${HOME}/backup/tblspc/...` в `${HOME}/sbm10` и `${HOME}/nym69` и перепривязывают `pg_tblspc` к этим путям.
 
 ## Порядок запуска
 
@@ -43,7 +37,7 @@ chmod 700 ${HOME}/archive ${HOME}/failover_pgdata ${HOME}/transfer
 [primary] psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity -f scripts/stage4_prepare.sql
 [standby] TARGET_TIME='YYYY-MM-DD HH24:MI:SS.US+TZ' bash scripts/stage4_restore_from_reserve.sh
 [standby->primary] scp ${HOME}/transfer/products_before_delete.dump postgres0@pg125:/var/db/postgres0/transfer/products_before_delete.dump
-[primary] PGPASSWORD='secure_password_123' pg_restore --clean --if-exists --no-owner --no-privileges -h localhost -U dbuser -p 9099 -d bigbluecity -t public.products ${HOME}/transfer/products_before_delete.dump
+[primary] PGPASSWORD='secure_password_123' pg_restore --clean --if-exists --no-owner --no-privileges -h localhost -U dbuser -p 9099 -d bigbluecity ${HOME}/transfer/products_before_delete.dump
 ```
 
 `TARGET_TIME` для этапа 4 берётся из вывода `stage4_prepare.sql`: это момент перед `DELETE`.
