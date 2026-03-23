@@ -190,11 +190,11 @@ pg_basebackup -D "${BACKUP_ROOT}/base" -Fp -X stream -P -c fast \
   --tablespace-mapping="${PRIMARY_TS2}=${BACKUP_ROOT}/tblspc/nym69"
 ```
 
-Проверка параметров архивирования:
+Проверка параметров архивирования на основном узле:
 
 ```bash
-ssh -J s413099@helios.cs.ifmo.ru:2222 postgres0@pg125 \
-  "psql -v ON_ERROR_STOP=1 -p 9099 -d postgres -c 'SHOW archive_mode; SHOW archive_command; SHOW wal_level;'"
+psql -v ON_ERROR_STOP=1 -p 9099 -d postgres \
+  -c 'SHOW archive_mode; SHOW archive_command; SHOW wal_level;'
 ```
 
 Пример ожидаемого вывода:
@@ -216,8 +216,7 @@ ssh -J s413099@helios.cs.ifmo.ru:2222 postgres0@pg125 \
 Проверка наличия резервной копии и WAL-архива на резервном узле:
 
 ```bash
-ssh -J s413099@helios.cs.ifmo.ru:2222 postgres2@pg132 \
-  "ls -lah /tmp/ddss_lab2_backup /tmp/ddss_lab2_archive"
+ls -lah /tmp/ddss_lab2_backup /tmp/ddss_lab2_archive
 ```
 
 Пример ожидаемого результата:
@@ -336,11 +335,11 @@ touch '${FAILOVER_PGDATA}/recovery.signal'
 pg_ctl -D '${FAILOVER_PGDATA}' -l '${FAILOVER_PGDATA}/startup.log' start
 ```
 
-Проверка результата:
+Проверка результата на резервном узле:
 
 ```bash
-ssh -J s413099@helios.cs.ifmo.ru:2222 postgres2@pg132 \
-  "psql -v ON_ERROR_STOP=1 -h localhost -p 9099 -d bigbluecity -c 'SELECT pg_is_in_recovery(), count(*) FROM sales;'"
+psql -v ON_ERROR_STOP=1 -h localhost -p 9099 -d bigbluecity \
+  -c 'SELECT pg_is_in_recovery(), count(*) FROM sales;'
 ```
 
 Пример ожидаемого вывода:
@@ -359,18 +358,16 @@ ssh -J s413099@helios.cs.ifmo.ru:2222 postgres2@pg132 \
 
 Согласно условию задания, необходимо смоделировать потерю файлов одного из табличных пространств. Для этого была удалена директория `$HOME/sbm10` на основном узле.
 
-Команда симуляции сбоя:
+Команда симуляции сбоя на основном узле:
 
 ```bash
-ssh -J s413099@helios.cs.ifmo.ru:2222 postgres0@pg125 \
-  "rm -rf \$HOME/sbm10"
+rm -rf "$HOME/sbm10"
 ```
 
 Проверка доступности данных до перезапуска:
 
 ```bash
-ssh -J s413099@helios.cs.ifmo.ru:2222 postgres0@pg125 \
-  "psql -v ON_ERROR_STOP=0 -p 9099 -d bigbluecity -c 'SELECT count(*) FROM products;'"
+psql -v ON_ERROR_STOP=0 -p 9099 -d bigbluecity -c 'SELECT count(*) FROM products;'
 ```
 
 На этом этапе возможны два варианта:
@@ -381,8 +378,7 @@ ssh -J s413099@helios.cs.ifmo.ru:2222 postgres0@pg125 \
 После этого выполняется перезапуск кластера:
 
 ```bash
-ssh -J s413099@helios.cs.ifmo.ru:2222 postgres0@pg125 \
-  "pg_ctl -D \$HOME/nwc36 restart -m fast"
+pg_ctl -D "$HOME/nwc36" restart -m fast
 ```
 
 После перезапуска сервер уже не может корректно использовать потерянное табличное пространство, что подтверждает физическое повреждение данных.
@@ -419,30 +415,30 @@ $HOME/nwc36_restore
 6. Настройку `restore_command` для применения архивных WAL.
 7. Запуск восстановленного кластера.
 
-Фрагмент сценария:
+Ключевой фрагмент сценария:
 
 ```bash
-rsync -aH --delete '${BACKUP_ROOT}/base/' '${PRIMARY_RESTORE_PGDATA}/'
-rsync -aH --delete '${BACKUP_ROOT}/tblspc/sbm10/' '${PRIMARY_RESTORE_TS1}/'
-rsync -aH --delete '${BACKUP_ROOT}/tblspc/nym69/' '${PRIMARY_RESTORE_TS2}/'
+rsync -aH --delete "${BACKUP_ROOT}/base/" "${PRIMARY_RESTORE_PGDATA}/"
+rsync -aH --delete "${BACKUP_ROOT}/tblspc/sbm10/" "${PRIMARY_RESTORE_TS1}/"
+rsync -aH --delete "${BACKUP_ROOT}/tblspc/nym69/" "${PRIMARY_RESTORE_TS2}/"
 
-touch '${PRIMARY_RESTORE_PGDATA}/recovery.signal'
+touch "${PRIMARY_RESTORE_PGDATA}/recovery.signal"
 
 restore_command = 'cp /tmp/ddss_lab2_archive/%f %p'
 ```
 
-Проверка доступности данных после восстановления:
+Проверка доступности данных после восстановления на основном узле:
 
 ```bash
-ssh -J s413099@helios.cs.ifmo.ru:2222 postgres0@pg125 \
-  "psql -v ON_ERROR_STOP=1 -h localhost -p 9099 -d bigbluecity -c 'SELECT pg_is_in_recovery(), count(*) FROM sales;'"
+psql -v ON_ERROR_STOP=1 -h localhost -p 9099 -d bigbluecity \
+  -c 'SELECT pg_is_in_recovery(), count(*) FROM sales;'
 ```
 
 Дополнительно можно проверить новые пути табличных пространств:
 
 ```bash
-ssh -J s413099@helios.cs.ifmo.ru:2222 postgres0@pg125 \
-  "psql -p 9099 -d postgres -c 'SELECT spcname, pg_tablespace_location(oid) FROM pg_tablespace ORDER BY spcname;'"
+psql -p 9099 -d postgres \
+  -c 'SELECT spcname, pg_tablespace_location(oid) FROM pg_tablespace ORDER BY spcname;'
 ```
 
 Пример ожидаемого результата:
@@ -464,11 +460,11 @@ ssh -J s413099@helios.cs.ifmo.ru:2222 postgres0@pg125 \
 
 На первом шаге в каждую таблицу были добавлены новые строки.
 
-Команда запуска подготовительного SQL-сценария:
+Команда запуска подготовительного SQL-сценария на основном узле:
 
 ```bash
-ssh -J s413099@helios.cs.ifmo.ru:2222 postgres0@pg125 \
-  "cd /Users/skadibtw/ddss/lab2 && psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity -f scripts/stage4_prepare.sql"
+cd /Users/skadibtw/ddss/lab2
+psql -v ON_ERROR_STOP=1 -p 9099 -d bigbluecity -f scripts/stage4_prepare.sql
 ```
 
 Сценарий выполняет:
@@ -519,7 +515,7 @@ WHERE id IN (
 
 ### Восстановление данных
 
-Для восстановления используется резервный узел. На нем разворачивается временный кластер из базовой копии, затем выполняется PITR до времени непосредственно перед ошибочным удалением. После этого из полученного состояния выгружается таблица `products` с помощью `pg_dump`, а затем она восстанавливается на основном узле с помощью `pg_restore`.
+Для восстановления используется резервный узел. На нем разворачивается временный кластер из базовой копии, затем выполняется PITR до времени непосредственно перед ошибочным удалением. После этого из полученного состояния выгружается таблица `products` с помощью `pg_dump`, а затем дамп вручную переносится на основной узел и применяется через `pg_restore`.
 
 Сценарий запускается локально на резервном узле:
 
@@ -549,19 +545,19 @@ pg_dump -h localhost -p 9191 -d bigbluecity -Fc -t public.products -f /tmp/ddss_
 ```
 
 5. После этого дамп вручную переносится на основной узел.
-6. На основном узле выполняется:
+6. На основном узле затем выполняется:
 
 ```bash
+mkdir -p /tmp/ddss_lab2_transfer
 pg_restore --clean --if-exists --no-owner --no-privileges \
   -h localhost -p 9099 -d bigbluecity -t public.products \
   /tmp/ddss_lab2_transfer/products_before_delete.dump
 ```
 
-Проверка результата:
+Проверка результата на основном узле:
 
 ```bash
-ssh -J s413099@helios.cs.ifmo.ru:2222 postgres0@pg125 \
-  "psql -v ON_ERROR_STOP=1 -h localhost -p 9099 -d bigbluecity -c 'TABLE products;'"
+psql -v ON_ERROR_STOP=1 -h localhost -p 9099 -d bigbluecity -c 'TABLE products;'
 ```
 
 Ожидаемый результат: таблица `products` возвращается в состояние до ошибочного удаления, включая только что добавленные строки.
@@ -676,6 +672,6 @@ Bandwidth >= V / T
 
 ## Вывод
 
-В ходе выполнения лабораторной работы была настроена схема резервного копирования PostgreSQL по модели «полная физическая копия + непрерывное архивирование WAL» с переносом данных на резервный узел. Были подготовлены сценарии для аварийного запуска базы данных на резервном сервере, полного восстановления основного узла после физического повреждения табличного пространства и восстановления логически поврежденных данных через PITR на резервном узле и последующий `pg_dump`/`pg_restore` на основном узле.
+В ходе выполнения лабораторной работы была настроена схема резервного копирования PostgreSQL по модели «полная физическая копия + непрерывное архивирование WAL» с переносом данных на резервный узел. Были подготовлены локальные сценарии для аварийного запуска базы данных на резервном сервере, полного восстановления основного узла после физического повреждения табличного пространства и восстановления логически поврежденных данных через PITR на резервном узле с последующим ручным переносом дампа и `pg_restore` на основном узле.
 
 В результате была подтверждена работоспособность выбранной схемы резервного копирования и показано, что комбинация `pg_basebackup` и архивных WAL позволяет восстанавливать как весь кластер, так и отдельные объекты базы данных.
