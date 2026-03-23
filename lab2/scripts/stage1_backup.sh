@@ -21,6 +21,8 @@ ALTER SYSTEM SET archive_timeout = '300';
 ALTER SYSTEM SET archive_command = '${ARCHIVE_COMMAND}';
 SQL
 
+echo "local   replication   postgres0   peer" >> "${HOME}/nwc36/pg_hba.conf"
+
 echo "[3/6] restart primary to apply archive_mode"
 pg_ctl -D "${HOME}/nwc36" restart -m fast
 
