@@ -103,7 +103,6 @@ ssh -J s413099@helios.cs.ifmo.ru:2222 postgres2@pg132
 
 Используются файлы:
 
-- `lab2/scripts/env.sh`;
 - `lab2/scripts/stage1_backup.sh`;
 - `lab2/scripts/calc_backup_size.sh`;
 - `lab2/scripts/stage2_failover.sh`;
@@ -115,24 +114,11 @@ ssh -J s413099@helios.cs.ifmo.ru:2222 postgres2@pg132
 
 ## Этап 1. Резервное копирование
 
-Сначала был подготовлен файл переменных окружения `lab2/scripts/env.sh`, в котором были указаны узлы, пути и каталоги резервного копирования.
-
-Фрагмент конфигурации:
-
-```bash
-PRIMARY_HOST="pg125"
-PRIMARY_USER="postgres0"
-STANDBY_HOST="pg132"
-STANDBY_USER="postgres2"
-
-PRIMARY_PGDATA="${HOME}/nwc36"
-PRIMARY_PORT="9099"
-PRIMARY_DB="bigbluecity"
-```
+Сначала были подготовлены скрипты, в которых все пути, порты и узлы прописаны в явном виде. Вы можете выделять команды и выполнять их в консоли построчно.
 
 Далее на основном узле была настроена архивизация WAL и создана первоначальная полная копия.
 
-Сценарий запускается локально на основном узле:
+Сценарий запускается локально на основном узле (или выполняется построчно из текста скрипта):
 
 ```bash
 cd /Users/skadibtw/ddss/lab2
@@ -176,18 +162,18 @@ SELECT pg_switch_wal();
 Ключевой фрагмент сценария `stage1_backup.sh`:
 
 ```bash
-psql -v ON_ERROR_STOP=1 -p "${PRIMARY_PORT}" -d postgres <<SQL
+psql -v ON_ERROR_STOP=1 -p "9099" -d postgres <<SQL
 ALTER SYSTEM SET wal_level = 'replica';
 ALTER SYSTEM SET archive_mode = 'on';
 ALTER SYSTEM SET archive_timeout = '300';
-ALTER SYSTEM SET archive_command = '${ARCHIVE_COMMAND}';
+ALTER SYSTEM SET archive_command = 'test ! -f /tmp/ddss_lab2_archive/%f && cp %p /tmp/ddss_lab2_archive/%f && scp -q /tmp/ddss_lab2_archive/%f postgres2@pg132:/tmp/ddss_lab2_archive/%f';
 SQL
 
-pg_ctl -D "${PRIMARY_PGDATA}" restart -m fast
+pg_ctl -D "${HOME}/nwc36" restart -m fast
 
-pg_basebackup -D "${BACKUP_ROOT}/base" -Fp -X stream -P -c fast \
-  --tablespace-mapping="${PRIMARY_TS1}=${BACKUP_ROOT}/tblspc/sbm10" \
-  --tablespace-mapping="${PRIMARY_TS2}=${BACKUP_ROOT}/tblspc/nym69"
+pg_basebackup -D "/tmp/ddss_lab2_backup/base" -Fp -X stream -P -c fast \
+  --tablespace-mapping="${HOME}/sbm10=/tmp/ddss_lab2_backup/tblspc/sbm10" \
+  --tablespace-mapping="${HOME}/nym69=/tmp/ddss_lab2_backup/tblspc/nym69"
 ```
 
 Проверка параметров архивирования на основном узле:
@@ -320,19 +306,19 @@ recovery_target_action = 'promote'
 Ключевой фрагмент сценария:
 
 ```bash
-rsync -aH --delete '${BACKUP_ROOT}/base/' '${FAILOVER_PGDATA}/'
+rsync -aH --delete '/tmp/ddss_lab2_backup/base/' '/tmp/ddss_lab2_failover_pgdata/'
 
-cat >> '${FAILOVER_PGDATA}/postgresql.auto.conf' <<CONF
-port = '${STANDBY_PORT}'
+cat >> '/tmp/ddss_lab2_failover_pgdata/postgresql.auto.conf' <<CONF
+port = '9099'
 listen_addresses = 'localhost'
 unix_socket_directories = '/tmp'
-restore_command = 'cp ${ARCHIVE_DIR}/%f %p'
+restore_command = 'cp /tmp/ddss_lab2_archive/%f %p'
 recovery_target_timeline = 'latest'
 recovery_target_action = 'promote'
 CONF
 
-touch '${FAILOVER_PGDATA}/recovery.signal'
-pg_ctl -D '${FAILOVER_PGDATA}' -l '${FAILOVER_PGDATA}/startup.log' start
+touch '/tmp/ddss_lab2_failover_pgdata/recovery.signal'
+pg_ctl -D '/tmp/ddss_lab2_failover_pgdata' -l '/tmp/ddss_lab2_failover_pgdata/startup.log' start
 ```
 
 Проверка результата на резервном узле:
@@ -385,7 +371,7 @@ pg_ctl -D "$HOME/nwc36" restart -m fast
 
 ### Восстановление данных
 
-По условию задания исходный каталог `PGDATA` считается недоступным, поэтому восстановление выполняется в новую директорию.
+Несмотря на то, что повреждение данных является частичным (потеряно только одно табличное пространство), мы выполняем полное восстановление всего кластера из резервной копии. По условию задания исходный каталог `PGDATA` при этом считается недоступным, поэтому полное восстановление выполняется в новые директории.
 
 Сценарий запускается локально на основном узле:
 
@@ -418,11 +404,11 @@ $HOME/nwc36_restore
 Ключевой фрагмент сценария:
 
 ```bash
-rsync -aH --delete "${BACKUP_ROOT}/base/" "${PRIMARY_RESTORE_PGDATA}/"
-rsync -aH --delete "${BACKUP_ROOT}/tblspc/sbm10/" "${PRIMARY_RESTORE_TS1}/"
-rsync -aH --delete "${BACKUP_ROOT}/tblspc/nym69/" "${PRIMARY_RESTORE_TS2}/"
+rsync -aH --delete "/tmp/ddss_lab2_backup/base/" "${HOME}/nwc36_restore/"
+rsync -aH --delete "/tmp/ddss_lab2_backup/tblspc/sbm10/" "/tmp/ddss_lab2_restore_ts1/"
+rsync -aH --delete "/tmp/ddss_lab2_backup/tblspc/nym69/" "/tmp/ddss_lab2_restore_ts2/"
 
-touch "${PRIMARY_RESTORE_PGDATA}/recovery.signal"
+touch "${HOME}/nwc36_restore/recovery.signal"
 
 restore_command = 'cp /tmp/ddss_lab2_archive/%f %p'
 ```
@@ -672,6 +658,6 @@ Bandwidth >= V / T
 
 ## Вывод
 
-В ходе выполнения лабораторной работы была настроена схема резервного копирования PostgreSQL по модели «полная физическая копия + непрерывное архивирование WAL» с переносом данных на резервный узел. Были подготовлены локальные сценарии для аварийного запуска базы данных на резервном сервере, полного восстановления основного узла после физического повреждения табличного пространства и восстановления логически поврежденных данных через PITR на резервном узле с последующим ручным переносом дампа и `pg_restore` на основном узле.
+В ходе выполнения лабораторной работы была настроена схема резервного копирования PostgreSQL по модели «полная физическая копия + непрерывное архивирование WAL» с переносом данных на резервный узел. Были подготовлены локальные сценарии для аварийного запуска базы данных на резервном сервере, полного восстановления основного узла после частичного физического повреждения (потери одного табличного пространства) и восстановления логически поврежденных данных через PITR на резервном узле с последующим ручным переносом дампа и `pg_restore` на основном узле.
 
 В результате была подтверждена работоспособность выбранной схемы резервного копирования и показано, что комбинация `pg_basebackup` и архивных WAL позволяет восстанавливать как весь кластер, так и отдельные объекты базы данных.

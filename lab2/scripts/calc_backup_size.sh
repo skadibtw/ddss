@@ -2,10 +2,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-. "${SCRIPT_DIR}/env.sh"
 
-if [ -d "${BACKUP_ROOT}/base" ]; then
-  BASE_MB="$(du -sm "${BACKUP_ROOT}/base" | awk '{print $1}')"
+if [ -d "/tmp/ddss_lab2_backup/base" ]; then
+  BASE_MB="$(du -sm "/tmp/ddss_lab2_backup/base" | awk '{print $1}')"
 else
   BASE_MB="0"
 fi

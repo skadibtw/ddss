@@ -2,59 +2,58 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-. "${SCRIPT_DIR}/env.sh"
 
 for cmd in pg_ctl pg_isready psql rsync; do
   command -v "${cmd}" >/dev/null
 done
 
 echo "[1/5] stop broken primary cluster"
-pg_ctl -D "${PRIMARY_PGDATA}" stop -m immediate >/dev/null 2>&1 || true
+pg_ctl -D "${HOME}/nwc36" stop -m immediate >/dev/null 2>&1 || true
 
 echo "[2/5] prepare new locations"
-rm -rf "${PRIMARY_RESTORE_PGDATA}" "${PRIMARY_RESTORE_TS1}" "${PRIMARY_RESTORE_TS2}"
-mkdir -p "${PRIMARY_RESTORE_PGDATA}" "${PRIMARY_RESTORE_TS1}" "${PRIMARY_RESTORE_TS2}"
+rm -rf "${HOME}/nwc36_restore" "/tmp/ddss_lab2_restore_ts1" "/tmp/ddss_lab2_restore_ts2"
+mkdir -p "${HOME}/nwc36_restore" "/tmp/ddss_lab2_restore_ts1" "/tmp/ddss_lab2_restore_ts2"
 
 echo "[3/5] restore base backup into new PGDATA"
-rsync -aH --delete "${BACKUP_ROOT}/base/" "${PRIMARY_RESTORE_PGDATA}/"
-rsync -aH --delete "${BACKUP_ROOT}/tblspc/sbm10/" "${PRIMARY_RESTORE_TS1}/"
-rsync -aH --delete "${BACKUP_ROOT}/tblspc/nym69/" "${PRIMARY_RESTORE_TS2}/"
+rsync -aH --delete "/tmp/ddss_lab2_backup/base/" "${HOME}/nwc36_restore/"
+rsync -aH --delete "/tmp/ddss_lab2_backup/tblspc/sbm10/" "/tmp/ddss_lab2_restore_ts1/"
+rsync -aH --delete "/tmp/ddss_lab2_backup/tblspc/nym69/" "/tmp/ddss_lab2_restore_ts2/"
 
-cat >> "${PRIMARY_RESTORE_PGDATA}/postgresql.auto.conf" <<CONF
-port = '${PRIMARY_PORT}'
+cat >> "${HOME}/nwc36_restore/postgresql.auto.conf" <<CONF
+port = '9099'
 listen_addresses = 'localhost'
 unix_socket_directories = '/tmp'
-restore_command = 'cp ${ARCHIVE_DIR}/%f %p'
+restore_command = 'cp /tmp/ddss_lab2_archive/%f %p'
 recovery_target_timeline = 'latest'
 recovery_target_action = 'promote'
 CONF
 
-touch "${PRIMARY_RESTORE_PGDATA}/recovery.signal"
+touch "${HOME}/nwc36_restore/recovery.signal"
 
 echo "[4/5] remap tablespaces to new locations"
 bash -s <<EOF
 set -euo pipefail
 declare -A TS_MAP
-for link in '${PRIMARY_RESTORE_PGDATA}'/pg_tblspc/*; do
+for link in '${HOME}/nwc36_restore'/pg_tblspc/*; do
   [ -L "\${link}" ] || continue
   oid="\$(basename "\${link}")"
   target="\$(readlink "\${link}")"
   case "\${target}" in
-    *sbm10*) TS_MAP["\${oid}"]='${PRIMARY_RESTORE_TS1}' ;;
-    *nym69*) TS_MAP["\${oid}"]='${PRIMARY_RESTORE_TS2}' ;;
+    *sbm10*) TS_MAP["\${oid}"]='/tmp/ddss_lab2_restore_ts1' ;;
+    *nym69*) TS_MAP["\${oid}"]='/tmp/ddss_lab2_restore_ts2' ;;
   esac
 done
-rm -f '${PRIMARY_RESTORE_PGDATA}'/pg_tblspc/*
+rm -f '${HOME}/nwc36_restore'/pg_tblspc/*
 for oid in "\${!TS_MAP[@]}"; do
-  ln -s "\${TS_MAP[\${oid}]}" '${PRIMARY_RESTORE_PGDATA}'/pg_tblspc/"\${oid}"
+  ln -s "\${TS_MAP[\${oid}]}" '${HOME}/nwc36_restore'/pg_tblspc/"\${oid}"
 done
 EOF
 
 echo "[5/5] start restored primary and verify"
-pg_ctl -D "${PRIMARY_RESTORE_PGDATA}" -l "${PRIMARY_RESTORE_PGDATA}/startup.log" start
+pg_ctl -D "${HOME}/nwc36_restore" -l "${HOME}/nwc36_restore/startup.log" start
 sleep 5
-pg_isready -h localhost -p "${PRIMARY_PORT}"
-psql -v ON_ERROR_STOP=1 -h localhost -p "${PRIMARY_PORT}" -d "${PRIMARY_DB}" -c "SELECT pg_is_in_recovery() AS in_recovery, count(*) AS sales_rows FROM sales;"
+pg_isready -h localhost -p "9099"
+psql -v ON_ERROR_STOP=1 -h localhost -p "9099" -d "bigbluecity" -c "SELECT pg_is_in_recovery() AS in_recovery, count(*) AS sales_rows FROM sales;"
 
 echo
-echo "Primary is restored in ${PRIMARY_RESTORE_PGDATA}"
+echo "Primary is restored in ${HOME}/nwc36_restore"
